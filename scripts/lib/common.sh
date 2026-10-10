@@ -151,9 +151,13 @@ si_disk_name() {
         return
     fi
     vendor=$(cat "$d/vendor" 2>/dev/null)
-    # SATA disks behind libata all say ATA
-    [ "$(echo $vendor)" = ATA ] && vendor=
+    # SATA disks behind libata all say ATA, virtio gives a PCI vendor ID
+    case $(echo $vendor) in
+    ATA | 0x*) vendor= ;;
+    esac
     model=$(cat "$d/model" 2>/dev/null)
+    # Virtual disks have no model, maybe a serial number
+    [ -z "$model" ] && model=$(cat "/sys/block/$1/serial" 2>/dev/null)
     echo $vendor $model
 }
 
