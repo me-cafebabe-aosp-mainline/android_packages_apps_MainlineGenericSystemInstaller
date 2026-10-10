@@ -76,6 +76,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -253,6 +254,15 @@ class MainActivity : ComponentActivity() {
     private fun App() {
         BackHandler(enabled = screen != Screen.PROGRESS) { back() }
         BackHandler(enabled = screen == Screen.PROGRESS) {}
+        // The background and content color of every screen, also of the
+        // ones without a Scaffold and during transitions
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Screens()
+        }
+    }
+
+    @Composable
+    private fun Screens() {
         AnimatedContent(targetState = screen, label = "screen") {
             when (it) {
                 Screen.LOADING -> Loading()
