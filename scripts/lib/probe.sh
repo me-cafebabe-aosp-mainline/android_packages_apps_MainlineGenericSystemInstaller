@@ -9,7 +9,8 @@
 #   SYSTEM  <uefi|bios> <EFI bits: 64|32|> <Secure Boot: 1|0|> <arch>
 #           <device> <build date> <title> <default kernel command line>
 #           <source found: 1|0> <why not>
-#   DISK    <name> <bytes> <removable: 1|0> <usable: 1|0> <model> <why not>
+#   DISK    <name> <bytes> <removable: 1|0> <usable: 1|0> <vendor and
+#           model> <why not> <type, see si_disk_type>
 #   PART    <name> <disk> <bytes> <filesystem> <label> <free MiB>
 #           <usable: 1|0> <operating system> <why not>
 #   INSTALL <id> <disk|beside|package> <build date> <upgradable: 1|0>
@@ -97,7 +98,7 @@ probe_install_date() {
 }
 
 probe() {
-    local name device found src_disks busy d bytes usable why model installed upgradable p disk fstype label free os m
+    local name device found src_disks busy d bytes usable why installed upgradable p disk fstype label free os m
     name=$(si_install_name)
     device=$(si_device)
     if source_find; then
@@ -133,9 +134,9 @@ probe() {
         else
             usable=1
         fi
-        model=$(cat "/sys/block/$d/device/model" 2>/dev/null | sed 's/ *$//')
-        printf 'DISK\t%s\t%s\t%s\t%s\t%s\t%s\n' "$d" "$bytes" \
-            "$(cat "/sys/block/$d/removable" 2>/dev/null || echo 0)" "$usable" "$model" "$why"
+        printf 'DISK\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$d" "$bytes" \
+            "$(cat "/sys/block/$d/removable" 2>/dev/null || echo 0)" "$usable" \
+            "$(si_disk_name "$d")" "$why" "$(si_disk_type "$d")"
 
         installed=$(probe_install_date "$d") || continue
         upgradable=0

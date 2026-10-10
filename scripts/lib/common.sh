@@ -110,6 +110,53 @@ si_disks() {
     done
 }
 
+# si_disk_type <disk>: nvme, ssd, hdd (SATA), usb, sd, emmc, ufs, virtio,
+# xen or scsi
+si_disk_type() {
+    local path
+    case $1 in
+    nvme*) echo nvme; return ;;
+    vd*) echo virtio; return ;;
+    xvd*) echo xen; return ;;
+    mmcblk*)
+        if [ "$(cat "/sys/block/$1/device/type" 2>/dev/null)" = MMC ]; then
+            echo emmc
+        else
+            echo sd
+        fi
+        return
+        ;;
+    esac
+    path=$(readlink -f "/sys/block/$1")
+    case $path in
+    */usb[0-9]*) echo usb ;;
+    *ufs*) echo ufs ;;
+    */ata[0-9]*)
+        if [ "$(cat "/sys/block/$1/queue/rotational" 2>/dev/null)" = 1 ]; then
+            echo hdd
+        else
+            echo ssd
+        fi
+        ;;
+    *) echo scsi ;;
+    esac
+}
+
+# si_disk_name <disk>: vendor and model, or the card name, if known
+si_disk_name() {
+    local d vendor model
+    d=/sys/block/$1/device
+    if [ -f "$d/name" ]; then
+        cat "$d/name"
+        return
+    fi
+    vendor=$(cat "$d/vendor" 2>/dev/null)
+    # SATA disks behind libata all say ATA
+    [ "$(echo $vendor)" = ATA ] && vendor=
+    model=$(cat "$d/model" 2>/dev/null)
+    echo $vendor $model
+}
+
 # si_partitions <disk>
 si_partitions() {
     local p

@@ -139,7 +139,8 @@ class SystemInstaller : public installer::BnSystemInstaller {
                                                  .removable = f[3] == "1",
                                                  .usable = f[4] == "1",
                                                  .model = f[5],
-                                                 .reason = f[6]});
+                                                 .reason = f[6],
+                                                 .type = f.size() >= 8 ? f[7] : ""});
                     } else if (f[0] == "PART" && f.size() >= 10) {
                         result->partitions.push_back({.name = f[1],
                                                       .disk = f[2],
