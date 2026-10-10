@@ -11,7 +11,7 @@
     <string name="running">An installation is already running.</string>
     <string name="unavailable">The installer is not available: %1$s</string>
     <string name="no_source">This system can not be installed: %1$s</string>
-    <string name="system_info">Installs %1$s (%2$s) from the running system.\nFirmware: %3$s</string>
+    <string name="system_subtitle">%1$s for %2$s · %3$s</string>
     <string name="firmware_uefi">UEFI, %1$d-bit</string>
     <string name="firmware_bios">BIOS</string>
     <string name="secure_boot_on">Secure Boot is on: turn it off in the firmware settings, or the installed system does not boot.</string>
@@ -28,13 +28,11 @@
     <string name="target_beside">Choose the partition</string>
     <string name="target_upgrade">Choose the installation</string>
     <string name="target_none">Nothing usable was found.</string>
-    <string name="disk_label">%1$s: %2$s %3$s</string>
-    <string name="partition_label">%1$s: %2$s %3$s, %4$s free</string>
-    <string name="installation_label">%1$s: %2$s, built %3$s</string>
+    <string name="free">%1$s free</string>
+    <string name="built">Built %1$s</string>
     <string name="kind_disk">whole disk</string>
     <string name="kind_beside">beside another operating system</string>
     <string name="kind_package">installed by a package</string>
-    <string name="removable">(removable)</string>
 
     <string name="options_title">Options</string>
     <string name="cmdline">Kernel command line</string>
@@ -45,7 +43,8 @@
     <string name="allow_downgrade_summary">Android may not start with user data of a newer build</string>
 
     <string name="confirm_title">Ready to install</string>
-    <string name="confirm_disk">Everything on %1$s (%2$s) will be erased.\n\nType %1$s to confirm.</string>
+    <string name="confirm_disk">Everything on %1$s (%2$s) will be erased.</string>
+    <string name="confirm_type">Type %1$s to confirm</string>
     <string name="confirm_beside">%1$s will be installed on %2$s.</string>
     <string name="confirm_upgrade">The installation on %1$s will be upgraded to %2$s.</string>
 
@@ -53,7 +52,6 @@
     <string name="done_title">Installed</string>
     <string name="done_message">Remove the installation media, if any, and restart.</string>
     <string name="failed_title">The installation failed</string>
-    <string name="cancelled">Cancelled</string>
 
     <string name="back">Back</string>
     <string name="next">Next</string>

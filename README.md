@@ -40,7 +40,7 @@ does not find it on LVM or LUKS), and Secure Boot must be off.
 
 | Path | Content |
 |------|---------|
-| `app/` | `SystemInstaller`, the interface (Kotlin) |
+| `app/` | `SystemInstaller`, the interface (Kotlin, Jetpack Compose, Material 3 Expressive) |
 | `aidl/` | `ISystemInstaller`, between the app and the daemon (unstable) |
 | `daemon/` | `systeminstallerd`, runs the scripts as root. A lazy service: started by servicemanager when the app asks for it |
 | `scripts/` | `systeminstaller` and its libraries, which do the work. The output protocol is described in `lib/common.sh` |

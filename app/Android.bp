@@ -12,7 +12,16 @@ android_app {
     certificate: "platform",
     privileged: true,
     system_ext_specific: true,
-    static_libs: ["device.mainline.generic.installer-java"],
+    static_libs: [
+        "androidx.activity_activity-compose",
+        "androidx.compose.foundation_foundation",
+        "androidx.compose.material3_material3",
+        "androidx.compose.material_material-icons-core",
+        "androidx.compose.material_material-icons-extended",
+        "androidx.compose.runtime_runtime",
+        "androidx.compose.ui_ui",
+        "device.mainline.generic.installer-java",
+    ],
     required: [
         "privapp-permissions-device.mainline.generic.installer.xml",
         "systeminstallerd",

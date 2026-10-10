@@ -74,6 +74,11 @@ A whole disk installation and the disk image must stay identical.
   it freely, the app and the daemon are always built together.
 - AIDL strings are `@utf8InCpp` and not nullable: the app must pass ""
   instead of null.
+- The app is Jetpack Compose with `MaterialExpressiveTheme`. The
+  Expressive components are experimental: before using one, read its
+  signature in the sources jar of the material3 version in
+  `prebuilts/sdk/current/androidx/m2repository/androidx/compose/material3/material3-android/`,
+  not in the documentation of another version.
 - The daemon accepts only the system UID (the app has
   `android:sharedUserId="android.uid.system"`).
 - GRUB's `core.img` expects the EFI system partition as `gpt2`
@@ -90,7 +95,7 @@ A whole disk installation and the disk image must stay identical.
 
 | Path | What |
 |------|------|
-| `app/` | `SystemInstaller`: `MainActivity.kt` (the steps), `Installer.kt` (binder), `BootReceiver.kt` (launcher icon on `ro.boot.live=1`), Settings > System entry in `AndroidManifest.xml` |
+| `app/` | `SystemInstaller`: `MainActivity.kt` (the steps, in Compose), `Installer.kt` (binder), `BootReceiver.kt` (launcher icon on `ro.boot.live=1`), Settings > System entry in `AndroidManifest.xml` |
 | `aidl/` | `ISystemInstaller`, `IProgressCallback`, parcelables |
 | `daemon/` | `systeminstallerd.cpp`, its `.rc` (lazy, `interface aidl`) |
 | `scripts/systeminstaller.sh` | Entry point: `probe`, `install-disk`, `install-beside`, `upgrade` |
