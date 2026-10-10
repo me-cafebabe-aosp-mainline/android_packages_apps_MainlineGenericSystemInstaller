@@ -1,0 +1,91 @@
+#
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
+#
+# Partition layout of a whole disk installation. Shared by the installer
+# (mksh, 32-bit arithmetic) and the disk image build (host sh): sizes are
+# in MiB, never in bytes.
+#
+# Partitions, in this order (the BIOS boot partition only with BIOS boot
+# code, the GRUB core.img expects the EFI system partition as gpt2):
+#
+#   bios esp system system_dlkm vendor vendor_dlkm metadata userdata
+#
+
+# Minimum sizes in MiB. A system partition gets twice its image, at least
+# the minimum, so that later builds still fit.
+LAYOUT_MIN_esp=1024
+LAYOUT_MIN_system=4096
+LAYOUT_MIN_system_dlkm=256
+LAYOUT_MIN_vendor=1024
+LAYOUT_MIN_vendor_dlkm=512
+LAYOUT_SIZE_bios=1
+LAYOUT_SIZE_metadata=64
+
+LAYOUT_SYSTEM_PARTS="system system_dlkm vendor vendor_dlkm"
+
+# layout_parts <bios: 0|1>
+layout_parts() {
+    if [ "$1" = 1 ]; then
+        echo bios esp $LAYOUT_SYSTEM_PARTS metadata userdata
+    else
+        echo esp $LAYOUT_SYSTEM_PARTS metadata userdata
+    fi
+}
+
+# layout_number <bios: 0|1> <name>: partition number
+layout_number() {
+    n=1
+    for p in $(layout_parts "$1"); do
+        if [ "$p" = "$2" ]; then
+            echo $n
+            return 0
+        fi
+        n=$((n + 1))
+    done
+    return 1
+}
+
+# layout_size <name> <content MiB>: twice the content, at least the minimum
+layout_size() {
+    eval "min=\${LAYOUT_MIN_$1:-0}"
+    size=$(($2 * 2))
+    [ "$size" -ge "$min" ] || size=$min
+    echo "$size"
+}
+
+# layout_create <sgdisk> <target> <bios: 0|1> <size of each partition after
+# bios, in MiB, in layout_parts order; 0 for userdata takes the rest>
+layout_create() {
+    sgdisk=$1
+    target=$2
+    bios=$3
+    shift 3
+
+    "$sgdisk" --zap-all "$target" >/dev/null 2>&1 || true
+    set -- $( [ "$bios" = 1 ] && echo "$LAYOUT_SIZE_bios" ) "$@"
+    args=
+    n=1
+    for p in $(layout_parts "$bios"); do
+        size=$1
+        shift
+        case $p in
+        bios) type=ef02 ;;
+        esp) type=ef00 ;;
+        *) type=8300 ;;
+        esac
+        if [ "$size" = 0 ]; then
+            end=0
+        else
+            end=+${size}M
+        fi
+        args="$args --new=$n:0:$end --typecode=$n:$type --change-name=$n:$p"
+        n=$((n + 1))
+    done
+    "$sgdisk" $args "$target" >/dev/null
+}
+
+# layout_first_sector <sgdisk> <target> <number>
+layout_first_sector() {
+    "$1" -i "$3" "$2" | sed -n 's/^First sector: \([0-9]*\).*/\1/p'
+}
