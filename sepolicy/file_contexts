@@ -1,0 +1,2 @@
+/system_ext/bin/systeminstaller     u:object_r:systeminstallerd_exec:s0
+/system_ext/bin/systeminstallerd    u:object_r:systeminstallerd_exec:s0

@@ -1,0 +1,5 @@
+# Labels only: the installer needs the device to be permissive.
+type systeminstallerd, domain, coredomain;
+type systeminstallerd_exec, system_file_type, exec_type, file_type;
+
+init_daemon_domain(systeminstallerd)
