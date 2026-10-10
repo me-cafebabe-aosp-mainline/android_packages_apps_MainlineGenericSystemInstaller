@@ -67,9 +67,10 @@ si_install_name() {
 }
 
 # Kernel command line of the running system, without what depends on how
-# it was booted
+# it was booted, and without the command line built into the kernel, which
+# the kernel adds by itself
 si_default_cmdline() {
-    local out t initrd
+    local out t builtin
     set -f
     out=
     for t in $(cat /proc/cmdline); do
@@ -79,7 +80,18 @@ si_default_cmdline() {
         esac
     done
     set +f
-    echo "${out# }"
+    out=${out# }
+    builtin=$(zcat /proc/config.gz 2>/dev/null | sed -n 's/^CONFIG_CMDLINE="\(.*\)"$/\1/p')
+    if [ -n "$builtin" ]; then
+        while :; do
+            case $out in
+            "$builtin") out= ;;
+            "$builtin "*) out=${out#"$builtin "} ;;
+            *) break ;;
+            esac
+        done
+    fi
+    echo "$out"
 }
 
 #
