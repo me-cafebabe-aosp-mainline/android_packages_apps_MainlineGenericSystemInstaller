@@ -48,6 +48,7 @@ si_mib() {
 }
 
 si_title() {
+    local v
     v=$(getprop ro.lineage.build.version)
     if [ -n "$v" ]; then
         echo "LineageOS $v"
@@ -68,6 +69,7 @@ si_install_name() {
 # Kernel command line of the running system, without what depends on how
 # it was booted
 si_default_cmdline() {
+    local out t initrd
     set -f
     out=
     for t in $(cat /proc/cmdline); do
@@ -86,6 +88,7 @@ si_default_cmdline() {
 
 # Disks that can be installed to or read from
 si_disks() {
+    local d
     for d in /sys/block/*; do
         d=${d##*/}
         case $d in
@@ -97,6 +100,7 @@ si_disks() {
 
 # si_partitions <disk>
 si_partitions() {
+    local p
     for p in /sys/block/"$1"/"$1"*; do
         [ -f "$p/partition" ] && echo "${p##*/}"
     done
@@ -105,6 +109,7 @@ si_partitions() {
 # Everything that may hold a filesystem: partitions, disks without
 # partitions, optical drives
 si_filesystems() {
+    local d parts
     for d in $(si_disks); do
         parts=$(si_partitions "$d")
         if [ -n "$parts" ]; then
@@ -120,6 +125,7 @@ si_filesystems() {
 
 # si_disk_of <partition>: the disk, or the name itself for a disk
 si_disk_of() {
+    local p
     if [ -f "/sys/class/block/$1/partition" ]; then
         p=$(readlink -f "/sys/class/block/$1")
         p=${p%/*}
@@ -149,6 +155,7 @@ si_size() {
 
 # si_wait_dev <name>: wait for the device node, up to 10 seconds
 si_wait_dev() {
+    local i
     i=0
     while [ ! -b "/dev/block/$1" ]; do
         [ "$i" -ge 20 ] && return 1
@@ -161,6 +168,7 @@ si_wait_dev() {
 # For a mount point covered by an overlay (/vendor of the generic tree),
 # the filesystem under the overlay.
 si_dev_of_path() {
+    local dev major minor majmin p
     dev=$((0x$(stat -c %D "$1")))
     major=$(((dev >> 8) & 0xfff))
     minor=$(((dev & 0xff) | ((dev >> 12) & 0xfff00)))
@@ -178,6 +186,7 @@ si_dev_of_path() {
 
 # Disks with a mounted filesystem
 si_busy_disks() {
+    local majmin p
     while read -r _ _ majmin _; do
         p=$(readlink -f "/sys/dev/block/$majmin" 2>/dev/null) || continue
         si_disk_of "${p##*/}"
@@ -192,6 +201,7 @@ si_blkid() {
 # si_fs_size <device or file>: bytes of the filesystem in it, or of the
 # whole device for unknown ones
 si_fs_size() {
+    local magic bits blocks
     magic=$(od -A n -t x4 -j 1024 -N 4 "$1" | tr -d ' ')
     if [ "$magic" = e0f5e1e2 ]; then
         bits=$(od -A n -t u1 -j 1036 -N 1 "$1" | tr -d ' ')
@@ -218,6 +228,7 @@ si_fs_size() {
 #
 
 si_cleanup() {
+    local m
     for m in $SI_MOUNTS; do
         umount "$m" 2>/dev/null || umount -l "$m" 2>/dev/null
         rmdir "$m" 2>/dev/null
@@ -230,6 +241,7 @@ trap 'exit 1' HUP INT TERM
 # si_mount <device name, device or file> [rw]: mounts it, sets SI_MNT to
 # the mount point and SI_FSTYPE
 si_mount() {
+    local m opts dev t
     mkdir -p "$SI_TMP"
     m=$(mktemp -d "$SI_TMP/m.XXXXXX") || return 1
     opts=ro
@@ -251,6 +263,7 @@ si_mount() {
 
 # si_umount <mount point>
 si_umount() {
+    local new m
     umount "$1" 2>/dev/null || umount -l "$1"
     rmdir "$1" 2>/dev/null
     new=
@@ -267,6 +280,7 @@ si_free() {
 
 # si_build_date <system partition device or system.img>: ro.build.date.utc
 si_build_date() {
+    local f
     si_mount "$1" || return 1
     for f in "$SI_MNT/system/build.prop" "$SI_MNT/build.prop"; do
         if [ -f "$f" ]; then
@@ -279,6 +293,7 @@ si_build_date() {
 
 # si_copy <source> <destination> <MiB> <percent from> <percent to> <text>
 si_copy() {
+    local i
     i=0
     while [ "$i" -lt "$3" ]; do
         dd if="$1" of="$2" bs=1048576 skip="$i" seek="$i" count=16 conv=notrunc 2>/dev/null ||

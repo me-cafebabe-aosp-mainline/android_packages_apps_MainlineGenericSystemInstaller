@@ -20,6 +20,7 @@
 # Sets MIB_<name> for what gets installed, and MIB_DISK and MIB_BESIDE,
 # the minimum sizes for both kinds of installation
 probe_sizes() {
+    local p dev mib
     MIB_kernel=$(si_mib "$(wc -c <"$SRC_DIR/kernel")")
     MIB_ramdisk=$(si_mib "$(wc -c <"$SRC_DIR/ramdisk-all-combined.img")")
     MIB_firmware=$(source_firmware_mib)
@@ -38,6 +39,7 @@ probe_sizes() {
 }
 
 probe_secure_boot() {
+    local vars f
     vars=/sys/firmware/efi/efivars
     [ -d "$vars" ] || return
     [ -n "$(ls -A "$vars" 2>/dev/null)" ] || mount -t efivarfs -o ro none "$vars" 2>/dev/null
@@ -46,6 +48,7 @@ probe_secure_boot() {
 }
 
 probe_system() {
+    local firmware bits
     if [ -d /sys/firmware/efi ]; then
         firmware=uefi
         bits=$(cat /sys/firmware/efi/fw_platform_size 2>/dev/null)
@@ -60,6 +63,7 @@ probe_system() {
 
 # probe_os <mount point>
 probe_os() {
+    local name
     if [ -f "$1/etc/os-release" ]; then
         name=$(sed -n 's/^PRETTY_NAME=//p' "$1/etc/os-release" | tr -d '"')
         echo "${name:-Linux}"
@@ -73,6 +77,7 @@ probe_os() {
 # probe_install_date <disk>: build date of a whole disk installation on
 # it, or nothing
 probe_install_date() {
+    local system esp userdata p
     system=
     esp=
     userdata=
@@ -88,6 +93,7 @@ probe_install_date() {
 }
 
 probe() {
+    local name device found src_disks busy d bytes usable why model installed upgradable p disk fstype label free os m
     name=$(si_install_name)
     device=$(si_device)
     if source_find; then

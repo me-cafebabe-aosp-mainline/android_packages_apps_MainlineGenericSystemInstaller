@@ -21,6 +21,7 @@
 
 # source_kernel_release <kernel>
 source_kernel_release() {
+    local off
     if [ "$(dd if="$1" bs=1 skip=514 count=4 2>/dev/null)" = HdrS ]; then
         # x86 boot protocol: kernel_version points to the version string
         off=$(od -A n -t u2 -j 526 -N 2 "$1" | tr -d ' ')
@@ -31,6 +32,7 @@ source_kernel_release() {
 }
 
 source_find_android_dir() {
+    local release names fs n d
     release=$(uname -r)
     names="$(getprop ro.boot.android_dir) android boot/android"
     for fs in $(si_filesystems); do
@@ -51,6 +53,7 @@ source_find_android_dir() {
 }
 
 source_find() {
+    local root p dev fw
     SRC_MSG=
     root=$(si_dev_of_path /system) || {
         SRC_MSG="The system partition is not on a block device"
@@ -93,6 +96,7 @@ source_find() {
 
 # Disks holding what the running system was booted from
 source_disks() {
+    local p dev
     for p in $LAYOUT_SYSTEM_PARTS; do
         eval "dev=\$SRC_$p"
         case $dev in
@@ -116,6 +120,7 @@ source_firmware_mib() {
 
 # source_write_firmware <image to create>: returns 1 if there is none
 source_write_firmware() {
+    local mib
     if [ -n "$SRC_FIRMWARE" ]; then
         mib=$(si_mib "$(si_fs_size "/dev/block/$SRC_FIRMWARE")")
         dd if="/dev/block/$SRC_FIRMWARE" of="$1" bs=1048576 count="$mib" 2>/dev/null

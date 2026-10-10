@@ -48,6 +48,7 @@ grubcfg_entries() {
 # grubcfg_disk <title> <EFI system partition UUID> <kernel command line>
 # <firmware image: 0|1>: grub.cfg of a whole disk installation
 grubcfg_disk() {
+    local cmdline
     cmdline="$3 androidboot.android_dir=android androidboot.mount_system=std_parts"
     [ "$4" = 1 ] && cmdline="$cmdline androidboot.mount_firmware=img"
     grubcfg_header

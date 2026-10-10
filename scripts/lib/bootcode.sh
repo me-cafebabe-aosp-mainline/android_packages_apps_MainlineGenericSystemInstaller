@@ -9,6 +9,7 @@
 
 # bootcode_write_le <file> <offset> <bytes, at most 4> <value>
 bootcode_write_le() {
+    local s i
     s=
     i=0
     while [ "$i" -lt "$3" ]; do
@@ -22,6 +23,7 @@ bootcode_write_le() {
 # bootcode_install <disk> <boot.img> <core.img> <first sector of the BIOS
 # boot partition>
 bootcode_install() {
+    local disk start sectors
     disk=$1
     start=$4
 

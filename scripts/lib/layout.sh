@@ -35,6 +35,7 @@ layout_parts() {
 
 # layout_number <bios: 0|1> <name>: partition number
 layout_number() {
+    local n p
     n=1
     for p in $(layout_parts "$1"); do
         if [ "$p" = "$2" ]; then
@@ -48,6 +49,7 @@ layout_number() {
 
 # layout_size <name> <content MiB>: twice the content, at least the minimum
 layout_size() {
+    local min size
     eval "min=\${LAYOUT_MIN_$1:-0}"
     size=$(($2 * 2))
     [ "$size" -ge "$min" ] || size=$min
@@ -57,6 +59,7 @@ layout_size() {
 # layout_create <sgdisk> <target> <bios: 0|1> <size of each partition after
 # bios, in MiB, in layout_parts order; 0 for userdata takes the rest>
 layout_create() {
+    local sgdisk target bios args n p size end
     sgdisk=$1
     target=$2
     bios=$3

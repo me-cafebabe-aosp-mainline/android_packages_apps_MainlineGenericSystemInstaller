@@ -7,6 +7,7 @@
 
 # install_check_downgrade <build date of the installation> <allowed: 1|0>
 install_check_downgrade() {
+    local running
     running=$(getprop ro.build.date.utc)
     if [ -n "$1" ] && [ "$1" -gt "$running" ] && [ "$2" != 1 ]; then
         si_die "The installed system is newer than this one. Android can not use user data of a newer build."
@@ -17,6 +18,7 @@ install_check_downgrade() {
 # as the fallback boot loaders (\EFI\BOOT\BOOTX64.EFI and so on), or with a
 # name of their own for the firmware of this machine
 install_grub_efi() {
+    local f
     if [ "$2" = fallback ]; then
         for f in x86_64-efi:BOOTX64.EFI i386-efi:BOOTIA32.EFI arm64-efi:BOOTAA64.EFI; do
             [ -f "$SI_GRUB/${f%%:*}.efi" ] && cp "$SI_GRUB/${f%%:*}.efi" "$1/${f#*:}"
@@ -33,6 +35,7 @@ install_grub_efi() {
 
 # install_disk <disk> <kernel command line> <upgrade: 1|0> <allow downgrade: 1|0>
 install_disk() {
+    local disk dev bios p src part mib sizes total done_mib from esp firmware
     disk=$1
     dev=/dev/block/$disk
     [ -b "$dev" ] || si_die "No disk $disk"
@@ -143,6 +146,7 @@ install_disk() {
 
 # install_find_esp <disk>: the EFI system partition of a disk
 install_find_esp() {
+    local p n
     for p in $(si_partitions "$1"); do
         n=$(cat "/sys/class/block/$p/partition")
         if sgdisk -i "$n" "/dev/block/$1" 2>/dev/null | grep -qi 'C12A7328-F81F-11D2-BA4B-00A0C93EC93B'; then
@@ -155,6 +159,7 @@ install_find_esp() {
 
 # install_update_grub <root of a Linux system>: regenerates its grub.cfg
 install_update_grub() {
+    local r bound n rc t b
     r=$1
     if [ -x "$r/usr/sbin/update-grub" ]; then
         set -- /usr/sbin/update-grub
@@ -185,6 +190,7 @@ install_update_grub() {
 # install_linux_grub <root of a Linux system> <title> <menu entries>: adds
 # the entries to its GRUB menu
 install_linux_grub() {
+    local r name script cfgdir d begin end
     r=$1
     name=$(si_install_name)
     script=$r/etc/grub.d/35_$name
@@ -227,6 +233,7 @@ install_linux_grub() {
 # install_beside_entries <partition> <mount point> <title> <kernel command
 # line> <userdata mount method> <GRUB filesystem module>
 install_beside_entries() {
+    local name entries added esp d
     name=$(si_install_name)
     entries=$(grubcfg_entries "$3" "$(si_blkid "$1" UUID)" "$6" "$name" "$4" "$5")
     added=0
@@ -256,6 +263,7 @@ install_beside_entries() {
 # install_beside <partition> <userdata MiB> <kernel command line>
 # <boot entries: 1|0> <upgrade: 1|0> <allow downgrade: 1|0>
 install_beside() {
+    local part name fstype m dir mode need total p mib done_mib src from f cmdline
     part=$1
     name=$(si_install_name)
     source_find || si_die "$SRC_MSG"

@@ -55,6 +55,7 @@ while [ $# -gt 0 ]; do
 done
 
 mtool() {
+    local tool
     tool=$1
     shift
     if [ -n "$loader" ]; then
