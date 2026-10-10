@@ -12,8 +12,10 @@ import android.os.PowerManager
 import android.text.format.Formatter
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -31,6 +33,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -38,12 +41,14 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Album
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.InstallDesktop
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Usb
@@ -54,6 +59,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.LinearWavyProgressIndicator
@@ -465,22 +471,26 @@ class MainActivity : ComponentActivity() {
             ) {
                 LinearWavyProgressIndicator(progress = { animated }, modifier = Modifier.fillMaxWidth())
                 Text("${(progress * 100).toInt()} %", style = MaterialTheme.typography.labelLarge)
-                OutlinedCard(Modifier.fillMaxWidth().weight(1f)) {
-                    LazyColumn(state = logState, contentPadding = PaddingValues(12.dp)) {
-                        items(log.size) { i ->
-                            Text(
-                                log[i],
-                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            )
-                        }
-                    }
-                }
+                OutlinedCard(Modifier.fillMaxWidth().weight(1f)) { Log(logState) }
             }
         }
     }
 
+    private fun logText() = buildString {
+        if (screen == Screen.FAILED && message.isNotEmpty()) append(message).append("\n\n")
+        log.forEach { append(it).append('\n') }
+    }
+
     @Composable
     private fun Result(success: Boolean) {
+        val saveLog = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+            if (uri != null) {
+                val text = logText()
+                executor.execute {
+                    runCatching { contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } }
+                }
+            }
+        }
         Page(
             title = "",
             primary = if (success) {
@@ -518,22 +528,25 @@ class MainActivity : ComponentActivity() {
                     style = MaterialTheme.typography.headlineMedium,
                     textAlign = TextAlign.Center,
                 )
-                Text(
-                    if (success) stringResource(R.string.done_message) else message,
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                )
-                if (!success && log.isNotEmpty()) {
-                    OutlinedCard(Modifier.fillMaxWidth().weight(1f)) {
-                        LazyColumn(contentPadding = PaddingValues(12.dp)) {
-                            items(log.size) { i ->
-                                Text(
-                                    log[i],
-                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                                )
-                            }
-                        }
+                SelectionContainer {
+                    Text(
+                        if (success) stringResource(R.string.done_message) else message,
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                if (log.isNotEmpty()) {
+                    FilledTonalButton(
+                        onClick = { saveLog.launch("installer.log") },
+                        shapes = ButtonDefaults.shapes(),
+                    ) {
+                        Icon(Icons.Outlined.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.save_log))
                     }
+                }
+                if (!success && log.isNotEmpty()) {
+                    OutlinedCard(Modifier.fillMaxWidth().weight(1f)) { Log(rememberLazyListState()) }
                 }
             }
         }
@@ -621,6 +634,17 @@ class MainActivity : ComponentActivity() {
                     null
                 },
             ) { Text(choice.title) }
+        }
+    }
+
+    @Composable
+    private fun Log(state: androidx.compose.foundation.lazy.LazyListState) {
+        SelectionContainer {
+            LazyColumn(state = state, contentPadding = PaddingValues(12.dp)) {
+                items(log.size) { i ->
+                    Text(log[i], style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+                }
+            }
         }
     }
 

@@ -66,6 +66,15 @@ systeminstaller install-beside --target nvme0n1p3 --userdata-size 16384
 systeminstaller upgrade --target sdb
 ```
 
+## Logs
+
+- `systeminstallerd` writes the output of the last installation to
+  `/data/system/systeminstaller.log` (in RAM on a live boot).
+- The scripts copy it to the target as `installer.log`: in `/android` of
+  the EFI system partition, or in the Android directory beside another
+  operating system. A failed installation may not get there.
+- The app can save it anywhere (Save log), and its text can be copied.
+
 ## Disk image
 
 `m diskimage` builds `<artifact prefix>-disk.img`, the layout of a whole
