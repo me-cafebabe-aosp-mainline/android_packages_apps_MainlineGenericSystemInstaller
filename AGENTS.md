@@ -57,6 +57,9 @@ A whole disk installation and the disk image must stay identical.
   bashisms, no GNU options. Check that a toybox applet supports an option
   before using it (`awk`, `sgdisk`, `mke2fs`, `newfs_msdos`, `blkid` are
   separate binaries in `/system/bin`).
+- Every variable used inside a function is declared `local` on its first
+  line; only the intended globals (`SRC_*`, `SI_*`, `MIB_*`, `PART_*`)
+  are uppercase and not local. Shell functions share variables otherwise.
 - mksh has 32-bit arithmetic: never compute bytes in `$(( ))`. Use
   `si_calc` / `si_mib` (awk), and count in MiB or sectors.
 - The shared libraries (`layout.sh`, `bootcode.sh`, `grubcfg.sh`) must
