@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -38,6 +39,9 @@ namespace {
 
 constexpr char kServiceName[] = "device.mainline.generic.installer.ISystemInstaller/default";
 constexpr char kScript[] = "/system_ext/bin/systeminstaller";
+// The output of the last installation. The scripts copy it to the target
+// (SI_LOG).
+constexpr char kLog[] = "/data/system/systeminstaller.log";
 
 ScopedAStatus IllegalState(const char* message) {
     return ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_STATE, message);
@@ -55,10 +59,10 @@ int64_t ToInt64(const std::string& s, int64_t fallback = 0) {
 
 // Runs the script with the arguments, calls on_line for every line of its
 // output (stdout and stderr), returns its exit status. pid_out gets the
-// process ID while it runs.
+// process ID while it runs. log, when given, is passed as SI_LOG.
 int RunScript(const std::vector<std::string>& args,
               const std::function<void(const std::string&)>& on_line,
-              std::atomic<pid_t>* pid_out) {
+              std::atomic<pid_t>* pid_out, const char* log = nullptr) {
     int fds[2];
     if (pipe2(fds, O_CLOEXEC) != 0) {
         PLOG(ERROR) << "pipe2";
@@ -74,6 +78,7 @@ int RunScript(const std::vector<std::string>& args,
     if (pid == 0) {
         dup2(fds[1], STDOUT_FILENO);
         dup2(fds[1], STDERR_FILENO);
+        if (log) setenv("SI_LOG", log, 1);
         std::vector<char*> argv;
         argv.push_back(const_cast<char*>(kScript));
         for (const auto& arg : args) argv.push_back(const_cast<char*>(arg.c_str()));
@@ -207,9 +212,19 @@ class SystemInstaller : public installer::BnSystemInstaller {
 
         std::thread([this, args, callback] {
             std::string error;
+            FILE* log = fopen(kLog, "we");
+            if (log) {
+                fchmod(fileno(log), 0644);
+            } else {
+                PLOG(ERROR) << "Could not create " << kLog;
+            }
             int status = RunScript(
                     args,
                     [&](const std::string& line) {
+                        if (log) {
+                            fprintf(log, "%s\n", line.c_str());
+                            fflush(log);
+                        }
                         auto f = Split(line, "\t");
                         if (f[0] == "PROGRESS" && f.size() >= 3) {
                             callback->onProgress(ToInt64(f[1]), f[2]);
@@ -226,7 +241,8 @@ class SystemInstaller : public installer::BnSystemInstaller {
                             callback->onLog(line);
                         }
                     },
-                    &pid_);
+                    &pid_, log ? kLog : nullptr);
+            if (log) fclose(log);
             if (status != 0 && error.empty()) error = "The installer failed";
             callback->onFinished(status == 0, status == 0 ? "" : error);
             {
