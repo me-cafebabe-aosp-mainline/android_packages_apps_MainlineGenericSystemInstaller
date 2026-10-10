@@ -126,8 +126,6 @@ Possible without Android:
   `prebuilts/bootmgr`.
 - Helpers of `common.sh` and `source.sh` that do not need root.
 
-Put temporary files under `/t`.
-
 ## Known gaps
 
 - Android does not format empty user data yet: the installer formats
