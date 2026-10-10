@@ -157,13 +157,22 @@ si_wait_dev() {
     done
 }
 
-# si_dev_of_path <path>: block device name of the filesystem holding it
+# si_dev_of_path <path>: block device name of the filesystem holding it.
+# For a mount point covered by an overlay (/vendor of the generic tree),
+# the filesystem under the overlay.
 si_dev_of_path() {
     dev=$((0x$(stat -c %D "$1")))
     major=$(((dev >> 8) & 0xfff))
     minor=$(((dev & 0xff) | ((dev >> 12) & 0xfff00)))
-    [ "$major" = 0 ] && return 1
-    p=$(readlink -f "/sys/dev/block/$major:$minor") || return 1
+    majmin=$major:$minor
+    if [ "$major" = 0 ]; then
+        majmin=$(awk -v mp="$1" '
+            { for (i = 7; $i != "-"; i++);
+              if ($5 == mp && $(i + 1) != "overlay" && $3 !~ /^0:/) d = $3 }
+            END { print d }' /proc/self/mountinfo)
+        [ -n "$majmin" ] || return 1
+    fi
+    p=$(readlink -f "/sys/dev/block/$majmin") || return 1
     echo "${p##*/}"
 }
 
