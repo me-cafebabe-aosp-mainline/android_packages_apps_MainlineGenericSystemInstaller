@@ -30,6 +30,15 @@
     <string name="target_none">Nothing usable was found.</string>
     <string name="free">%1$s free</string>
     <string name="built">Built %1$s</string>
+    <string name="disk_nvme">NVMe SSD</string>
+    <string name="disk_ssd">SATA SSD</string>
+    <string name="disk_hdd">Hard disk</string>
+    <string name="disk_usb">USB drive</string>
+    <string name="disk_sd">SD card</string>
+    <string name="disk_emmc">eMMC</string>
+    <string name="disk_ufs">UFS</string>
+    <string name="disk_virtual">Virtual disk</string>
+    <string name="disk_other">Disk</string>
     <string name="kind_disk">whole disk</string>
     <string name="kind_beside">beside another operating system</string>
     <string name="kind_package">installed by a package</string>

@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.InstallDesktop
 import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.SdCard
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Usb
@@ -319,9 +320,17 @@ class MainActivity : ComponentActivity() {
         return when (mode) {
             InstallRequest.MODE_DISK -> p.disks.map {
                 Choice(
-                    it.name, if (it.removable) Icons.Outlined.Usb else Icons.Outlined.Storage,
-                    "${it.name} · ${size(it.sizeBytes)}",
-                    listOf(it.model, reason(it.usable, it.reason)).filter(String::isNotEmpty).joinToString("\n"),
+                    it.name,
+                    when (it.type) {
+                        "usb" -> Icons.Outlined.Usb
+                        "sd" -> Icons.Outlined.SdCard
+                        else -> Icons.Outlined.Storage
+                    },
+                    "${context.getString(diskType(it.type))} · ${size(it.sizeBytes)}",
+                    listOf(
+                        listOf(it.model, it.name).filter(String::isNotEmpty).joinToString(" · "),
+                        reason(it.usable, it.reason),
+                    ).filter(String::isNotEmpty).joinToString("\n"),
                     it.usable,
                 )
             }
@@ -358,6 +367,18 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun diskType(type: String) = when (type) {
+        "nvme" -> R.string.disk_nvme
+        "ssd" -> R.string.disk_ssd
+        "hdd" -> R.string.disk_hdd
+        "usb" -> R.string.disk_usb
+        "sd" -> R.string.disk_sd
+        "emmc" -> R.string.disk_emmc
+        "ufs" -> R.string.disk_ufs
+        "virtio", "xen" -> R.string.disk_virtual
+        else -> R.string.disk_other
     }
 
     @Composable
@@ -567,10 +588,13 @@ class MainActivity : ComponentActivity() {
             item {
                 when (mode) {
                     InstallRequest.MODE_DISK -> {
-                        val size = p.disks.firstOrNull { it.name == target }?.sizeBytes ?: 0
-                        Notice(stringResource(
-                            R.string.confirm_disk, target, Formatter.formatFileSize(LocalContext.current, size),
-                        ))
+                        val disk = p.disks.firstOrNull { it.name == target }
+                        val what = listOfNotNull(
+                            disk?.let { stringResource(diskType(it.type)) },
+                            disk?.model?.takeIf { it.isNotEmpty() },
+                            Formatter.formatFileSize(LocalContext.current, disk?.sizeBytes ?: 0),
+                        ).joinToString(" · ")
+                        Notice(stringResource(R.string.confirm_disk, target, what))
                     }
                     InstallRequest.MODE_BESIDE -> Summary(stringResource(R.string.confirm_beside, title, target))
                     else -> Summary(stringResource(R.string.confirm_upgrade, target, title))
