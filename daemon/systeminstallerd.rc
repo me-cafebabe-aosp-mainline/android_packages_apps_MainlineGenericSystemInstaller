@@ -1,0 +1,8 @@
+# Started by servicemanager when SystemInstaller asks for it, exits when
+# unused.
+service systeminstallerd /system_ext/bin/systeminstallerd
+    interface aidl device.mainline.generic.installer.ISystemInstaller/default
+    user root
+    group root
+    disabled
+    oneshot
