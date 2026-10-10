@@ -1,0 +1,92 @@
+//
+// SPDX-FileCopyrightText: The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
+// GRUB images installed to /system_ext/etc/systeminstaller/grub, copied to
+// the EFI system partition (or BIOS boot partition) by the installer.
+
+genrule_defaults {
+    name: "systeminstaller_grub_defaults",
+    tool_files: [
+        "mkgrub.sh",
+        ":bootmgr_lib64",
+    ],
+}
+
+genrule {
+    name: "systeminstaller_grub_arm64-efi",
+    defaults: ["systeminstaller_grub_defaults"],
+    srcs: ["efi.cfg"],
+    tool_files: [":bootmgr_grub_linux-x86_arm64-efi"],
+    out: ["arm64-efi.efi"],
+    cmd: "bash $(location mkgrub.sh) $(out) arm64-efi $(in) " +
+        "$(locations :bootmgr_lib64) $(locations :bootmgr_grub_linux-x86_arm64-efi)",
+}
+
+genrule {
+    name: "systeminstaller_grub_i386-efi",
+    defaults: ["systeminstaller_grub_defaults"],
+    srcs: ["efi.cfg"],
+    tool_files: [":bootmgr_grub_linux-x86_i386-efi"],
+    out: ["i386-efi.efi"],
+    cmd: "bash $(location mkgrub.sh) $(out) i386-efi $(in) " +
+        "$(locations :bootmgr_lib64) $(locations :bootmgr_grub_linux-x86_i386-efi)",
+}
+
+genrule {
+    name: "systeminstaller_grub_x86_64-efi",
+    defaults: ["systeminstaller_grub_defaults"],
+    srcs: ["efi.cfg"],
+    tool_files: [":bootmgr_grub_linux-x86_x86_64-efi"],
+    out: ["x86_64-efi.efi"],
+    cmd: "bash $(location mkgrub.sh) $(out) x86_64-efi $(in) " +
+        "$(locations :bootmgr_lib64) $(locations :bootmgr_grub_linux-x86_x86_64-efi)",
+}
+
+genrule {
+    name: "systeminstaller_grub_i386-pc",
+    defaults: ["systeminstaller_grub_defaults"],
+    srcs: ["bios.cfg"],
+    tool_files: [":bootmgr_grub_linux-x86_i386-pc"],
+    out: ["i386-pc-core.img"],
+    cmd: "bash $(location mkgrub.sh) $(out) i386-pc $(in) " +
+        "$(locations :bootmgr_lib64) $(locations :bootmgr_grub_linux-x86_i386-pc)",
+}
+
+genrule {
+    name: "systeminstaller_grub_i386-pc_boot",
+    srcs: [":bootmgr_grub_linux-x86_i386-pc"],
+    out: ["i386-pc-boot.img"],
+    cmd: "for f in $(in); do case $$f in */lib/grub/i386-pc/boot.img) cp $$f $(out) ;; esac; done",
+}
+
+genrule {
+    name: "systeminstaller_grub_font",
+    srcs: [":bootmgr_grub_linux-x86_x86_64-efi"],
+    out: ["unicode.pf2"],
+    cmd: "for f in $(in); do case $$f in */share/grub/unicode.pf2) cp $$f $(out) ;; esac; done",
+}
+
+prebuilt_etc {
+    name: "systeminstaller_grub",
+    system_ext_specific: true,
+    sub_dir: "systeminstaller/grub",
+    arch: {
+        arm64: {
+            srcs: [
+                ":systeminstaller_grub_arm64-efi",
+                ":systeminstaller_grub_font",
+            ],
+        },
+        x86_64: {
+            srcs: [
+                ":systeminstaller_grub_i386-efi",
+                ":systeminstaller_grub_i386-pc",
+                ":systeminstaller_grub_i386-pc_boot",
+                ":systeminstaller_grub_font",
+                ":systeminstaller_grub_x86_64-efi",
+            ],
+        },
+    },
+}
