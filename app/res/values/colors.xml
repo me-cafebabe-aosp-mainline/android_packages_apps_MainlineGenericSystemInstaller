@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <color name="ic_launcher_background">#C4EED0</color>
+    <color name="ic_launcher_shape">#146C2E</color>
+    <color name="ic_launcher_glyph">#FFFFFF</color>
+</resources>
