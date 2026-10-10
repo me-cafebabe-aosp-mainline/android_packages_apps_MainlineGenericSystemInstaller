@@ -4,6 +4,8 @@
 #
 # probe prints, tab separated:
 #
+#   LAYOUT  <partition> <default MiB> <minimum MiB>   of a whole disk
+#           installation, userdata takes the rest
 #   SYSTEM  <uefi|bios> <EFI bits: 64|32|> <Secure Boot: 1|0|> <arch>
 #           <device> <build date> <title> <default kernel command line>
 #           <source found: 1|0> <why not>
@@ -17,16 +19,18 @@
 # beside another operating system (PART).
 #
 
-# Sets MIB_<name> for what gets installed, and MIB_DISK and MIB_BESIDE,
-# the minimum sizes for both kinds of installation
+# Sets MIB_<name> for what gets installed (MIB_efi: the content of the EFI
+# system partition), and MIB_DISK and MIB_BESIDE, the minimum sizes for both
+# kinds of installation with the default partition sizes
 probe_sizes() {
     local p dev mib
     MIB_kernel=$(si_mib "$(wc -c <"$SRC_DIR/kernel")")
     MIB_ramdisk=$(si_mib "$(wc -c <"$SRC_DIR/ramdisk-all-combined.img")")
     MIB_firmware=$(source_firmware_mib)
-    MIB_DISK=$((2 + LAYOUT_SIZE_metadata + 4096))
+    MIB_efi=$((MIB_kernel + MIB_ramdisk + MIB_firmware + 16))
+    MIB_DISK=$((2 + LAYOUT_SIZE_metadata + LAYOUT_MIN_USERDATA))
     [ -f "$SI_GRUB/i386-pc-core.img" ] && MIB_DISK=$((MIB_DISK + LAYOUT_SIZE_bios))
-    MIB_DISK=$((MIB_DISK + $(layout_size esp $((MIB_kernel + MIB_ramdisk + MIB_firmware + 16)))))
+    MIB_DISK=$((MIB_DISK + $(layout_size efi "$MIB_efi")))
     MIB_BESIDE=$((MIB_kernel + MIB_ramdisk + MIB_firmware + 64))
     for p in $LAYOUT_SYSTEM_PARTS; do
         eval "dev=\$SRC_$p"
@@ -84,7 +88,7 @@ probe_install_date() {
     for p in $(si_partitions "$1"); do
         case $(si_partname "$p") in
         system) system=$p ;;
-        esp) esp=$p ;;
+        efi | esp) esp=$p ;;
         userdata) userdata=$p ;;
         esac
     done
@@ -103,6 +107,13 @@ probe() {
         found=0
     fi
     probe_system $found
+    if [ "$found" = 1 ]; then
+        for p in efi $LAYOUT_SYSTEM_PARTS; do
+            eval "mib=\$MIB_$p"
+            printf 'LAYOUT\t%s\t%s\t%s\n' "$p" "$(layout_size "$p" "$mib")" "$(layout_minimum "$p" "$mib")"
+        done
+        printf 'LAYOUT\tmetadata\t%s\t%s\n' "$LAYOUT_SIZE_metadata" "$LAYOUT_HARD_MIN_metadata"
+    fi
 
     src_disks=$(source_disks 2>/dev/null)
     busy=$(si_busy_disks)

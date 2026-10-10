@@ -34,8 +34,9 @@ install_grub_efi() {
 }
 
 # install_disk <disk> <kernel command line> <upgrade: 1|0> <allow downgrade: 1|0>
+# SIZE_<partition> (MiB) overrides the default size of a partition
 install_disk() {
-    local disk dev bios p src part mib sizes total done_mib from esp firmware
+    local disk dev bios p src part mib sizes total done_mib from esp firmware need size min
     disk=$1
     dev=/dev/block/$disk
     [ -b "$dev" ] || si_die "No disk $disk"
@@ -50,12 +51,13 @@ install_disk() {
     if [ "$3" = 1 ]; then
         for p in $(si_partitions "$disk"); do
             case $(si_partname "$p") in
-            bios | esp | system | system_dlkm | vendor | vendor_dlkm | metadata | userdata)
+            bios | efi | system | system_dlkm | vendor | vendor_dlkm | metadata | userdata)
                 eval "PART_$(si_partname "$p")=\$p"
                 ;;
+            esp) PART_efi=$p ;;
             esac
         done
-        [ -n "$PART_esp" ] && [ -n "$PART_system" ] && [ -n "$PART_userdata" ] ||
+        [ -n "$PART_efi" ] && [ -n "$PART_system" ] && [ -n "$PART_userdata" ] ||
             si_die "No installation on $disk"
         install_check_downgrade "$(si_build_date "/dev/block/$PART_system")" "$4"
         for p in $LAYOUT_SYSTEM_PARTS; do
@@ -66,19 +68,31 @@ install_disk() {
         done
         [ -n "$PART_bios" ] || bios=0
     else
-        [ "$(si_mib "$(si_size "$disk")")" -ge "$MIB_DISK" ] || si_die "At least $MIB_DISK MiB are needed"
+        sizes=
+        need=$((2 + LAYOUT_MIN_USERDATA))
+        [ "$bios" = 1 ] && need=$((need + LAYOUT_SIZE_bios))
+        for p in efi $LAYOUT_SYSTEM_PARTS metadata; do
+            if [ "$p" = metadata ]; then
+                mib=0
+                size=$LAYOUT_SIZE_metadata
+            else
+                eval "mib=\$MIB_$p"
+                size=$(layout_size "$p" "$mib")
+            fi
+            eval "size=\${SIZE_$p:-$size}"
+            min=$(layout_minimum "$p" "$mib")
+            [ "$size" -ge "$min" ] 2>/dev/null || si_die "The $p partition needs at least $min MiB"
+            sizes="$sizes $size"
+            need=$((need + size))
+        done
+        [ "$(si_mib "$(si_size "$disk")")" -ge "$need" ] || si_die "At least $need MiB are needed"
         blockdev --rereadpt "$dev" || si_die "The disk is in use"
     fi
 
     si_stage destructive
     if [ "$3" != 1 ]; then
         si_progress 1 "Partitioning"
-        sizes=$(layout_size esp $((MIB_kernel + MIB_ramdisk + MIB_firmware + 16)))
-        for p in $LAYOUT_SYSTEM_PARTS; do
-            eval "mib=\$MIB_$p"
-            sizes="$sizes $(layout_size "$p" "$mib")"
-        done
-        layout_create sgdisk "$dev" "$bios" $sizes "$LAYOUT_SIZE_metadata" 0 ||
+        layout_create sgdisk "$dev" "$bios" $sizes 0 ||
             si_die "Could not partition the disk"
         blockdev --rereadpt "$dev"
         for p in $(layout_parts "$bios"); do
@@ -111,7 +125,7 @@ install_disk() {
         mke2fs -q -F -t ext4 -b 4096 -I 256 -L userdata "/dev/block/$PART_userdata" ||
             si_die "Could not format the userdata partition"
         si_progress 80 "Formatting the EFI system partition"
-        newfs_msdos -F 32 -L ESP "/dev/block/$PART_esp" >/dev/null ||
+        newfs_msdos -F 32 -L ESP "/dev/block/$PART_efi" >/dev/null ||
             si_die "Could not format the EFI system partition"
     fi
 
@@ -123,7 +137,7 @@ install_disk() {
     fi
 
     si_progress 82 "Copying the kernel"
-    si_mount "$PART_esp" rw || si_die "Could not mount the EFI system partition"
+    si_mount "$PART_efi" rw || si_die "Could not mount the EFI system partition"
     esp=$SI_MNT
     mkdir -p "$esp/EFI/BOOT" "$esp/android"
     install_grub_efi "$esp/EFI/BOOT" fallback || si_die "Could not copy GRUB"
@@ -137,7 +151,7 @@ install_disk() {
         rm -f "$esp/android/firmware.img"
         firmware=0
     fi
-    grubcfg_disk "$(si_title)" "$(si_blkid "$PART_esp" UUID)" "$2" "$firmware" >"$esp/EFI/BOOT/grub.cfg"
+    grubcfg_disk "$(si_title)" "$(si_blkid "$PART_efi" UUID)" "$2" "$firmware" >"$esp/EFI/BOOT/grub.cfg"
     si_save_log "$esp/android"
     sync
     si_umount "$esp"

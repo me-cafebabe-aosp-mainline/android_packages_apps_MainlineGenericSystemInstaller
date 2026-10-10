@@ -8,6 +8,7 @@
 # Usage:
 #   systeminstaller probe
 #   systeminstaller install-disk --target <disk> [--cmdline <text>]
+#       [--size <partition>=<MiB>]...
 #   systeminstaller install-beside --target <partition> [--userdata-size <MiB>]
 #       [--cmdline <text>] [--no-boot-entries]
 #   systeminstaller upgrade --target <disk or partition> [--cmdline <text>]
@@ -33,6 +34,13 @@ while [ $# -gt 0 ]; do
     --userdata-size) userdata_size=$2; shift ;;
     --no-boot-entries) boot_entries=0 ;;
     --allow-downgrade) allow_downgrade=1 ;;
+    --size)
+        case ${2%%=*} in
+        efi | system | system_dlkm | vendor | vendor_dlkm | metadata) eval "SIZE_${2%%=*}=\${2#*=}" ;;
+        *) si_die "Unknown partition ${2%%=*}" ;;
+        esac
+        shift
+        ;;
     *) si_die "Unknown option $1" ;;
     esac
     shift

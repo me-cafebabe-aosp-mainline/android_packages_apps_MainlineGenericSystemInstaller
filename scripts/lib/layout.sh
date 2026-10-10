@@ -9,27 +9,31 @@
 # Partitions, in this order (the BIOS boot partition only with BIOS boot
 # code, the GRUB core.img expects the EFI system partition as gpt2):
 #
-#   bios esp system system_dlkm vendor vendor_dlkm metadata userdata
+#   bios efi system system_dlkm vendor vendor_dlkm metadata userdata
 #
 
-# Minimum sizes in MiB. A system partition gets twice its image, at least
-# the minimum, so that later builds still fit.
-LAYOUT_MIN_esp=1024
+# Default sizes in MiB: twice the content, at least these, so that later
+# builds still fit. The sizes can be changed, down to the content.
+LAYOUT_MIN_efi=1024
 LAYOUT_MIN_system=4096
-LAYOUT_MIN_system_dlkm=256
-LAYOUT_MIN_vendor=1024
+LAYOUT_MIN_system_dlkm=128
+LAYOUT_MIN_vendor=512
 LAYOUT_MIN_vendor_dlkm=512
 LAYOUT_SIZE_bios=1
 LAYOUT_SIZE_metadata=64
+# FAT32 needs at least 33 MiB, user data at least this
+LAYOUT_HARD_MIN_efi=64
+LAYOUT_HARD_MIN_metadata=16
+LAYOUT_MIN_USERDATA=4096
 
 LAYOUT_SYSTEM_PARTS="system system_dlkm vendor vendor_dlkm"
 
 # layout_parts <bios: 0|1>
 layout_parts() {
     if [ "$1" = 1 ]; then
-        echo bios esp $LAYOUT_SYSTEM_PARTS metadata userdata
+        echo bios efi $LAYOUT_SYSTEM_PARTS metadata userdata
     else
-        echo esp $LAYOUT_SYSTEM_PARTS metadata userdata
+        echo efi $LAYOUT_SYSTEM_PARTS metadata userdata
     fi
 }
 
@@ -47,7 +51,19 @@ layout_number() {
     return 1
 }
 
-# layout_size <name> <content MiB>: twice the content, at least the minimum
+# layout_minimum <name> <content MiB>: the smallest size it can have
+layout_minimum() {
+    local min
+    eval "min=\${LAYOUT_HARD_MIN_$1:-1}"
+    if [ "$2" -gt "$min" ]; then
+        echo "$2"
+    else
+        echo "$min"
+    fi
+}
+
+# layout_size <name> <content MiB>: default size, twice the content, at
+# least LAYOUT_MIN_<name>
 layout_size() {
     local min size
     eval "min=\${LAYOUT_MIN_$1:-0}"
@@ -74,7 +90,7 @@ layout_create() {
         shift
         case $p in
         bios) type=ef02 ;;
-        esp) type=ef00 ;;
+        efi) type=ef00 ;;
         *) type=8300 ;;
         esac
         if [ "$size" = 0 ]; then

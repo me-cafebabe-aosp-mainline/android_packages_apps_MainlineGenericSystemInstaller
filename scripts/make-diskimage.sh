@@ -74,7 +74,7 @@ bios=0
 
 esp_content=$(($(mib "$kernel") + $(mib "$ramdisk") + 16))
 [ -n "$firmware" ] && esp_content=$((esp_content + $(mib "$firmware")))
-sizes="$(layout_size esp $esp_content)"
+sizes="$(layout_size efi $esp_content)"
 for p in $LAYOUT_SYSTEM_PARTS; do
     eval "file=\$image_$p"
     sizes="$sizes $(layout_size $p "$(mib "$file")")"
@@ -106,7 +106,7 @@ for p in metadata userdata; do
 done
 
 esp_size=${sizes%% *}
-esp="$out@@$(($(start esp) * 512))"
+esp="$out@@$(($(start efi) * 512))"
 mtool mformat -i "$esp" -F -T $((esp_size * 2048)) -N "$serial" -v ESP ::
 mtool mmd -i "$esp" ::/EFI ::/EFI/BOOT ::/android
 if [ "$bios" = 1 ]; then
