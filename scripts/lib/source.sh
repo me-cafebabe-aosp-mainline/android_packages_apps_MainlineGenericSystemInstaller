@@ -31,23 +31,40 @@ source_kernel_release() {
     fi
 }
 
+# source_is_android_dir <directory>
+source_is_android_dir() {
+    [ -f "$1/kernel" ] && [ -f "$1/ramdisk-all-combined.img" ] &&
+        [ "$(source_kernel_release "$1/kernel")" = "$(uname -r)" ]
+}
+
 source_find_android_dir() {
-    local release names fs n d
-    release=$(uname -r)
+    local names booted n fs
     names="$(getprop ro.boot.android_dir) android boot/android"
-    for fs in $(si_filesystems); do
-        si_mount "$fs" || continue
-        for n in $names; do
-            d=$SI_MNT/$n
-            if [ -f "$d/kernel" ] && [ -f "$d/ramdisk-all-combined.img" ] &&
-                [ "$(source_kernel_release "$d/kernel")" = "$release" ]; then
-                SRC_DIR=$d
+
+    # Still mounted by generic_init when the system needs it
+    booted=/mnt/vendor/generic_init/android
+    for n in $names; do
+        if source_is_android_dir "$booted/$n"; then
+            SRC_DIR=$booted/$n
+            SRC_DIR_DEV=$(si_dev_of_path "$booted")
+            SRC_DIR_NAME=$n
+            return 0
+        fi
+    done
+
+    # Otherwise search, the name it was booted with first: other
+    # installations have the same kernel
+    for n in $names; do
+        for fs in $(si_filesystems); do
+            si_mount "$fs" || continue
+            if source_is_android_dir "$SI_MNT/$n"; then
+                SRC_DIR=$SI_MNT/$n
                 SRC_DIR_DEV=$fs
                 SRC_DIR_NAME=$n
                 return 0
             fi
+            si_umount "$SI_MNT"
         done
-        si_umount "$SI_MNT"
     done
     return 1
 }
@@ -127,7 +144,7 @@ source_write_firmware() {
     elif [ -n "$SRC_FIRMWARE_DIR" ]; then
         mib=$(source_firmware_mib)
         truncate -s "${mib}M" "$1" &&
-            mke2fs -q -F -t ext4 -b 4096 -d "$SRC_FIRMWARE_DIR" "$1" 2>/dev/null
+            mke2fs -q -F -t ext4 -b 4096 -I 256 -d "$SRC_FIRMWARE_DIR" "$1" 2>/dev/null
     else
         return 1
     fi

@@ -291,6 +291,15 @@ si_build_date() {
     si_umount "$SI_MNT"
 }
 
+# si_save_log <directory>: copies the log of this installation, which
+# systeminstallerd writes to $SI_LOG, as installer.log
+si_save_log() {
+    if [ -n "$SI_LOG" ] && [ -f "$SI_LOG" ]; then
+        echo "Saving the log as installer.log"
+        cp "$SI_LOG" "$1/installer.log"
+    fi
+}
+
 # si_copy <source> <destination> <MiB> <percent from> <percent to> <text>
 si_copy() {
     local i

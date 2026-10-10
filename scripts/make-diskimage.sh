@@ -102,7 +102,7 @@ done
 
 for p in metadata userdata; do
     if [ $p = metadata ]; then size=$LAYOUT_SIZE_metadata; else size=$userdata_size; fi
-    "$mke2fs" -q -F -t ext4 -b 4096 -L $p -E offset=$(($(start $p) * 512)) "$out" "${size}M"
+    "$mke2fs" -q -F -t ext4 -b 4096 -I 256 -L $p -E offset=$(($(start $p) * 512)) "$out" "${size}M"
 done
 
 esp_size=${sizes%% *}

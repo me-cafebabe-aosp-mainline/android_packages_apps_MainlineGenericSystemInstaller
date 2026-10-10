@@ -106,13 +106,20 @@ install_disk() {
         si_progress 76 "Formatting the user data partitions"
         # Android should format empty partitions on the first boot, but
         # does not yet.
-        mke2fs -q -F -t ext4 -b 4096 -L metadata "/dev/block/$PART_metadata" ||
+        mke2fs -q -F -t ext4 -b 4096 -I 256 -L metadata "/dev/block/$PART_metadata" ||
             si_die "Could not format the metadata partition"
-        mke2fs -q -F -t ext4 -b 4096 -L userdata "/dev/block/$PART_userdata" ||
+        mke2fs -q -F -t ext4 -b 4096 -I 256 -L userdata "/dev/block/$PART_userdata" ||
             si_die "Could not format the userdata partition"
         si_progress 80 "Formatting the EFI system partition"
         newfs_msdos -F 32 -L ESP "/dev/block/$PART_esp" >/dev/null ||
             si_die "Could not format the EFI system partition"
+    fi
+
+    if [ "$bios" = 1 ]; then
+        si_progress 81 "Installing the BIOS boot code"
+        bootcode_install "$dev" "$SI_GRUB/i386-pc-boot.img" "$SI_GRUB/i386-pc-core.img" \
+            "$(layout_first_sector sgdisk "$dev" "$(cat "/sys/class/block/$PART_bios/partition")")" ||
+            si_die "Could not install the BIOS boot code"
     fi
 
     si_progress 82 "Copying the kernel"
@@ -131,15 +138,10 @@ install_disk() {
         firmware=0
     fi
     grubcfg_disk "$(si_title)" "$(si_blkid "$PART_esp" UUID)" "$2" "$firmware" >"$esp/EFI/BOOT/grub.cfg"
+    si_save_log "$esp/android"
     sync
     si_umount "$esp"
 
-    if [ "$bios" = 1 ]; then
-        si_progress 97 "Installing the BIOS boot code"
-        bootcode_install "$dev" "$SI_GRUB/i386-pc-boot.img" "$SI_GRUB/i386-pc-core.img" \
-            "$(layout_first_sector sgdisk "$dev" "$(cat "/sys/class/block/$PART_bios/partition")")" ||
-            si_die "Could not install the BIOS boot code"
-    fi
     sync
     si_progress 100 "Done"
 }
@@ -149,7 +151,7 @@ install_find_esp() {
     local p n
     for p in $(si_partitions "$1"); do
         n=$(cat "/sys/class/block/$p/partition")
-        if sgdisk -i "$n" "/dev/block/$1" 2>/dev/null | grep -qi 'C12A7328-F81F-11D2-BA4B-00A0C93EC93B'; then
+        if sgdisk --info="$n" "/dev/block/$1" 2>/dev/null | grep -qi 'C12A7328-F81F-11D2-BA4B-00A0C93EC93B'; then
             echo "$p"
             return 0
         fi
@@ -345,7 +347,7 @@ install_beside() {
             # does not yet.
             for f in userdata:$2 metadata:$LAYOUT_SIZE_metadata; do
                 truncate -s "${f#*:}M" "$dir/${f%%:*}.img" &&
-                    mke2fs -q -F -t ext4 -b 4096 "$dir/${f%%:*}.img" ||
+                    mke2fs -q -F -t ext4 -b 4096 -I 256 "$dir/${f%%:*}.img" ||
                     si_die "Could not create ${f%%:*}.img"
             done
         else
@@ -360,6 +362,8 @@ install_beside() {
         si_progress 95 "Adding boot entries"
         install_beside_entries "$part" "$m" "$(si_title)" "$cmdline" "$mode" "$fsmod"
     fi
+    si_save_log "$dir"
+    sync
     si_umount "$m"
     si_progress 100 "Done"
 }

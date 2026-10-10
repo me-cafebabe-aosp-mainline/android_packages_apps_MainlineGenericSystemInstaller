@@ -88,7 +88,8 @@ layout_create() {
     "$sgdisk" $args "$target" >/dev/null
 }
 
-# layout_first_sector <sgdisk> <target> <number>
+# layout_first_sector <sgdisk> <target> <number>. Long options only: the
+# sgdisk of Android does not take short ones.
 layout_first_sector() {
-    "$1" -i "$3" "$2" | sed -n 's/^First sector: \([0-9]*\).*/\1/p'
+    "$1" --info="$3" "$2" | sed -n 's/^First sector: \([0-9]*\).*/\1/p'
 }
