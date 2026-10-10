@@ -8,6 +8,7 @@ package device.mainline.generic.installer;
 import device.mainline.generic.installer.Disk;
 import device.mainline.generic.installer.Installation;
 import device.mainline.generic.installer.Partition;
+import device.mainline.generic.installer.PartitionLayout;
 import device.mainline.generic.installer.SystemInfo;
 
 parcelable ProbeResult {
@@ -15,4 +16,6 @@ parcelable ProbeResult {
     Disk[] disks;
     Partition[] partitions;
     Installation[] installations;
+    /** Of a whole disk installation, empty if nothing can be installed */
+    PartitionLayout[] layout;
 }

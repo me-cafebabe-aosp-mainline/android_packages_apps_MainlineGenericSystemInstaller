@@ -159,6 +159,10 @@ class SystemInstaller : public installer::BnSystemInstaller {
                                                          .buildDateUtc = ToInt64(f[3]),
                                                          .upgradable = f[4] == "1",
                                                          .reason = f[5]});
+                    } else if (f[0] == "LAYOUT" && f.size() >= 4) {
+                        result->layout.push_back({.name = f[1],
+                                                  .defaultMiB = static_cast<int32_t>(ToInt64(f[2])),
+                                                  .minimumMiB = static_cast<int32_t>(ToInt64(f[3]))});
                     } else if (f[0] == "ERROR" && f.size() >= 2) {
                         error = f[1];
                     } else {
@@ -182,6 +186,15 @@ class SystemInstaller : public installer::BnSystemInstaller {
         switch (request.mode) {
             case installer::InstallRequest::MODE_DISK:
                 args = {"install-disk"};
+                for (const auto& size : request.sizes) {
+                    if (size.name.empty() ||
+                        size.name.find_first_not_of("abcdefghijklmnopqrstuvwxyz_") != std::string::npos ||
+                        size.sizeMiB <= 0) {
+                        return ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+                    }
+                    args.insert(args.end(),
+                                {"--size", size.name + "=" + std::to_string(size.sizeMiB)});
+                }
                 break;
             case installer::InstallRequest::MODE_BESIDE:
                 args = {"install-beside", "--userdata-size",

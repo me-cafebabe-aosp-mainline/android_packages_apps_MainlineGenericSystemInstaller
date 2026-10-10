@@ -5,6 +5,8 @@
 
 package device.mainline.generic.installer;
 
+import device.mainline.generic.installer.PartitionSize;
+
 parcelable InstallRequest {
     /** Wipe the disk target */
     const int MODE_DISK = 0;
@@ -22,4 +24,6 @@ parcelable InstallRequest {
     /** For MODE_BESIDE and MODE_UPGRADE of such an installation */
     boolean bootEntries = true;
     boolean allowDowngrade;
+    /** For MODE_DISK: sizes instead of the defaults */
+    PartitionSize[] sizes = {};
 }
