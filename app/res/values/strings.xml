@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="app_name">System installer</string>
+    <string name="settings_summary">Install this system to a disk</string>
+
+    <string name="loading">Looking for disks…</string>
+    <string name="running">An installation is already running.</string>
+    <string name="unavailable">The installer is not available: %1$s</string>
+    <string name="no_source">This system can not be installed: %1$s</string>
+    <string name="system_info">Installs %1$s (%2$s) from the running system.\nFirmware: %3$s</string>
+    <string name="firmware_uefi">UEFI, %1$d-bit</string>
+    <string name="firmware_bios">BIOS</string>
+    <string name="secure_boot_on">Secure Boot is on: turn it off in the firmware settings, or the installed system does not boot.</string>
+
+    <string name="mode_title">What to do</string>
+    <string name="mode_disk">Install to a whole disk</string>
+    <string name="mode_disk_summary">Erases the disk</string>
+    <string name="mode_beside">Install beside another operating system</string>
+    <string name="mode_beside_summary">Adds files to an ext4, F2FS or NTFS partition</string>
+    <string name="mode_upgrade">Upgrade an installation</string>
+    <string name="mode_upgrade_summary">Keeps the user data</string>
+
+    <string name="target_disk">Choose the disk</string>
+    <string name="target_beside">Choose the partition</string>
+    <string name="target_upgrade">Choose the installation</string>
+    <string name="target_none">Nothing usable was found.</string>
+    <string name="disk_label">%1$s: %2$s %3$s</string>
+    <string name="partition_label">%1$s: %2$s %3$s, %4$s free</string>
+    <string name="installation_label">%1$s: %2$s, built %3$s</string>
+    <string name="kind_disk">whole disk</string>
+    <string name="kind_beside">beside another operating system</string>
+    <string name="kind_package">installed by a package</string>
+    <string name="removable">(removable)</string>
+
+    <string name="options_title">Options</string>
+    <string name="cmdline">Kernel command line</string>
+    <string name="userdata_size">Size of the user data, in GiB</string>
+    <string name="boot_entries">Add boot entries</string>
+    <string name="boot_entries_summary">GRUB on the EFI system partition, and in the GRUB menu of a Linux system on the partition</string>
+    <string name="allow_downgrade">Allow installing an older build</string>
+    <string name="allow_downgrade_summary">Android may not start with user data of a newer build</string>
+
+    <string name="confirm_title">Ready to install</string>
+    <string name="confirm_disk">Everything on %1$s (%2$s) will be erased.\n\nType %1$s to confirm.</string>
+    <string name="confirm_beside">%1$s will be installed on %2$s.</string>
+    <string name="confirm_upgrade">The installation on %1$s will be upgraded to %2$s.</string>
+
+    <string name="progress_title">Installing</string>
+    <string name="done_title">Installed</string>
+    <string name="done_message">Remove the installation media, if any, and restart.</string>
+    <string name="failed_title">The installation failed</string>
+    <string name="cancelled">Cancelled</string>
+
+    <string name="back">Back</string>
+    <string name="next">Next</string>
+    <string name="install">Install</string>
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+    <string name="restart">Restart</string>
+</resources>

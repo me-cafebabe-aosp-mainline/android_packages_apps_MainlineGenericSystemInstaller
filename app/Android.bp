@@ -1,0 +1,30 @@
+//
+// SPDX-FileCopyrightText: The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
+android_app {
+    name: "SystemInstaller",
+    srcs: ["src/**/*.kt"],
+    resource_dirs: ["res"],
+    manifest: "AndroidManifest.xml",
+    platform_apis: true,
+    certificate: "platform",
+    privileged: true,
+    system_ext_specific: true,
+    static_libs: ["device.mainline.generic.installer-java"],
+    required: [
+        "privapp-permissions-device.mainline.generic.installer.xml",
+        "systeminstallerd",
+    ],
+    optimize: {
+        enabled: false,
+    },
+}
+
+prebuilt_etc {
+    name: "privapp-permissions-device.mainline.generic.installer.xml",
+    src: "privapp-permissions-device.mainline.generic.installer.xml",
+    sub_dir: "permissions",
+    system_ext_specific: true,
+}
