@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -40,6 +41,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -87,11 +89,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -104,7 +108,11 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.Executors
 
-private enum class Screen { LOADING, MODES, TARGETS, OPTIONS, CONFIRM, PROGRESS, DONE, FAILED }
+private enum class Screen { LOADING, MODES, TARGETS, PARTITIONS, OPTIONS, CONFIRM, PROGRESS, DONE, FAILED }
+
+/** Like the scripts: room for user data, partition table and BIOS boot partition */
+private const val USERDATA_MIN_MIB = 4096L
+private const val OVERHEAD_MIB = 4L
 
 private data class Action(val label: String, val enabled: Boolean = true, val onClick: () -> Unit)
 
@@ -130,6 +138,9 @@ class MainActivity : ComponentActivity() {
     private var userdataGiB by mutableStateOf("16")
     private var bootEntries by mutableStateOf(true)
     private var allowDowngrade by mutableStateOf(false)
+    /** Partition sizes in MiB, as typed, for the disk in sizesTarget */
+    private val sizes = mutableStateMapOf<String, String>()
+    private var sizesTarget = ""
     private var confirmText by mutableStateOf("")
     private var progress by mutableFloatStateOf(0f)
     private var step by mutableStateOf("")
@@ -177,6 +188,18 @@ class MainActivity : ComponentActivity() {
             it.cmdline = if (cmdline.trim() == p.system.defaultCmdline) "" else cmdline.trim()
             it.bootEntries = bootEntries
             it.allowDowngrade = allowDowngrade
+            it.sizes = if (mode == InstallRequest.MODE_DISK) {
+                p.layout.mapNotNull { l ->
+                    sizes[l.name]?.toIntOrNull()?.takeIf { v -> v != l.defaultMiB }?.let { v ->
+                        PartitionSize().apply {
+                            name = l.name
+                            sizeMiB = v
+                        }
+                    }
+                }.toTypedArray()
+            } else {
+                emptyArray()
+            }
         }
         progress = 0f
         step = ""
@@ -212,7 +235,8 @@ class MainActivity : ComponentActivity() {
     private fun back() {
         screen = when (screen) {
             Screen.TARGETS -> Screen.MODES
-            Screen.OPTIONS -> Screen.TARGETS
+            Screen.PARTITIONS -> Screen.TARGETS
+            Screen.OPTIONS -> if (mode == InstallRequest.MODE_DISK) Screen.PARTITIONS else Screen.TARGETS
             Screen.CONFIRM -> Screen.OPTIONS
             else -> {
                 finish()
@@ -234,6 +258,7 @@ class MainActivity : ComponentActivity() {
                 Screen.LOADING -> Loading()
                 Screen.MODES -> Modes()
                 Screen.TARGETS -> Targets()
+                Screen.PARTITIONS -> Partitions()
                 Screen.OPTIONS -> Options()
                 Screen.CONFIRM -> Confirm()
                 Screen.PROGRESS -> Progress()
@@ -337,7 +362,17 @@ class MainActivity : ComponentActivity() {
         }
         ListPage(
             title = stringResource(title),
-            primary = Action(stringResource(R.string.next), target.isNotEmpty()) { screen = Screen.OPTIONS },
+            primary = Action(stringResource(R.string.next), target.isNotEmpty()) {
+                if (mode == InstallRequest.MODE_DISK) {
+                    if (sizesTarget != target) {
+                        sizes.clear()
+                        sizesTarget = target
+                    }
+                    screen = Screen.PARTITIONS
+                } else {
+                    screen = Screen.OPTIONS
+                }
+            },
             secondary = Action(stringResource(R.string.back)) { back() },
         ) {
             if (list.isEmpty()) {
@@ -346,6 +381,103 @@ class MainActivity : ComponentActivity() {
                 choices(list, target) { target = it }
             }
         }
+    }
+
+    @Composable
+    private fun Partitions() {
+        val p = probe ?: return
+        val context = LocalContext.current
+        fun size(mib: Long) = Formatter.formatFileSize(context, mib * 1048576)
+        val disk = p.disks.firstOrNull { it.name == target } ?: return
+        val diskMiB = disk.sizeBytes / 1048576
+        val parts = p.layout.toList()
+        val values = parts.map { (sizes[it.name] ?: "${it.defaultMiB}").toLongOrNull() ?: 0L }
+        val invalid = parts.indices.any { values[it] < parts[it].minimumMiB }
+        val userdataMiB = diskMiB - OVERHEAD_MIB - values.sum()
+        val colors = MaterialTheme.colorScheme.let {
+            listOf(it.primary, it.secondary, it.tertiary, it.error, it.primaryContainer, it.tertiaryContainer)
+        }
+        fun color(i: Int) = colors[i % colors.size]
+        val userdataColor = MaterialTheme.colorScheme.surfaceVariant
+
+        ListPage(
+            title = stringResource(R.string.partitions_title),
+            subtitle = "${disk.name} · ${size(diskMiB)}",
+            primary = Action(stringResource(R.string.next), !invalid && userdataMiB >= USERDATA_MIN_MIB) {
+                screen = Screen.OPTIONS
+            },
+            secondary = Action(stringResource(R.string.back)) { back() },
+        ) {
+            item {
+                UsageBar(values.indices.map { values[it] to color(it) } + (userdataMiB to userdataColor))
+            }
+            item {
+                Row(
+                    Modifier.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Dot(userdataColor)
+                    Text(
+                        if (userdataMiB >= USERDATA_MIN_MIB) {
+                            stringResource(R.string.userdata_rest, size(userdataMiB))
+                        } else {
+                            stringResource(R.string.userdata_too_small, size(USERDATA_MIN_MIB))
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (userdataMiB >= USERDATA_MIN_MIB) Color.Unspecified
+                                else MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+            itemsIndexed(parts) { i, part ->
+                OutlinedTextField(
+                    value = sizes[part.name] ?: "${part.defaultMiB}",
+                    onValueChange = { v -> sizes[part.name] = v.filter(Char::isDigit).take(9) },
+                    label = { Text(part.name) },
+                    leadingIcon = { Dot(color(i)) },
+                    suffix = { Text("MiB") },
+                    supportingText = {
+                        Text(stringResource(
+                            R.string.partition_size_hint,
+                            size(part.minimumMiB.toLong()), size(part.defaultMiB.toLong()),
+                        ))
+                    },
+                    isError = values[i] < part.minimumMiB,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                TextButton(onClick = { sizes.clear() }, enabled = sizes.isNotEmpty()) {
+                    Text(stringResource(R.string.reset_sizes))
+                }
+            }
+        }
+    }
+
+    /** How a disk is shared, each part at least a sliver */
+    @Composable
+    private fun UsageBar(parts: List<Pair<Long, Color>>) {
+        val total = parts.sumOf { maxOf(it.first, 0L) }.coerceAtLeast(1L)
+        Row(
+            Modifier.fillMaxWidth().height(32.dp).clip(RoundedCornerShape(16.dp)),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            parts.filter { it.first > 0 }.forEach { (mib, color) ->
+                Box(
+                    Modifier.weight(maxOf(mib.toFloat() / total, 0.015f))
+                        .fillMaxHeight()
+                        .background(color)
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun Dot(color: Color) {
+        Box(Modifier.size(12.dp).clip(CircleShape).background(color))
     }
 
     private fun isNtfsTarget() = mode == InstallRequest.MODE_BESIDE &&

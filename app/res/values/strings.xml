@@ -34,6 +34,11 @@
     <string name="kind_beside">beside another operating system</string>
     <string name="kind_package">installed by a package</string>
 
+    <string name="partitions_title">Partition sizes</string>
+    <string name="partition_size_hint">At least %1$s · default %2$s</string>
+    <string name="userdata_rest">userdata gets the rest: %1$s</string>
+    <string name="userdata_too_small">Not enough space for userdata, it needs at least %1$s</string>
+    <string name="reset_sizes">Reset to the defaults</string>
     <string name="options_title">Options</string>
     <string name="cmdline">Kernel command line</string>
     <string name="userdata_size">Size of the user data, in GiB</string>
