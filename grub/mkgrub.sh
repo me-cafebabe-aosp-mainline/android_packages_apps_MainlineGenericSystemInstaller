@@ -51,7 +51,7 @@ i386-pc)
     # whole disk installation.
     run grub-mkimage -d "$root/lib/grub/$platform" -O "$platform" -o "$out" \
         -p "(,gpt2)/EFI/BOOT" -c "$config" \
-        biosdisk part_gpt fat search search_fs_uuid configfile normal linux echo test all_video gfxterm font
+        biosdisk part_gpt part_msdos fat search search_fs_uuid configfile normal linux echo test all_video gfxterm font
     ;;
 *)
     echo "mkgrub.sh: unsupported platform $platform" >&2
