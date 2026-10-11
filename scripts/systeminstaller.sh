@@ -9,7 +9,9 @@
 #   systeminstaller probe
 #   systeminstaller install-disk --target <disk> [--cmdline <text>]
 #       [--size <partition>=<MiB>]... [--userdata-fs ext4|f2fs]
-#       [--overlay std_parts|imgs|imgs_ram]
+#       [--system std_parts|imgs|imgs_ram]
+#       [--userdata std_parts|imgs|bind_mount_dir] [--userdata-size <MiB>]
+#       [--android-fs ext4|f2fs] [--overlay std_parts|imgs|imgs_ram|dirs]
 #   systeminstaller install-beside --target <partition> [--userdata-size <MiB>]
 #       [--userdata-fs ext4|f2fs] [--userdata-images] [--cmdline <text>]
 #       [--no-boot-entries]
@@ -37,11 +39,29 @@ while [ $# -gt 0 ]; do
     --userdata-images) USERDATA_IMAGES=1 ;;
     --overlay)
         case $2 in
-        std_parts | imgs | imgs_ram) OVERLAY=$2 ;;
-        # overlayfs refuses FAT32 directories (own name hashing), the
-        # Android directory is on the EFI system partition
-        dirs) si_die "Overlay directories do not work on the EFI system partition" ;;
+        std_parts | imgs | imgs_ram | dirs) OVERLAY=$2 ;;
         *) si_die "Unknown overlay mode $2" ;;
+        esac
+        shift
+        ;;
+    --system)
+        case $2 in
+        std_parts | imgs | imgs_ram) SYSTEM_MODE=$2 ;;
+        *) si_die "Unknown system mode $2" ;;
+        esac
+        shift
+        ;;
+    --userdata)
+        case $2 in
+        std_parts | imgs | bind_mount_dir) USERDATA_MODE=$2 ;;
+        *) si_die "Unknown user data mode $2" ;;
+        esac
+        shift
+        ;;
+    --android-fs)
+        case $2 in
+        ext4 | f2fs) ANDROID_FS=$2 ;;
+        *) si_die "Unknown filesystem $2" ;;
         esac
         shift
         ;;
@@ -56,7 +76,7 @@ while [ $# -gt 0 ]; do
         ;;
     --size)
         case ${2%%=*} in
-        efi | system | system_dlkm | vendor | vendor_dlkm | metadata | system_overlay | vendor_overlay)
+        efi | system | system_dlkm | vendor | vendor_dlkm | metadata | android | system_overlay | vendor_overlay)
             eval "SIZE_${2%%=*}=\${2#*=}"
             ;;
         *) si_die "Unknown partition ${2%%=*}" ;;
@@ -74,6 +94,7 @@ probe)
     probe
     ;;
 install-disk)
+    USERDATA_SIZE=$userdata_size
     install_disk "$target" "$cmdline" 0 0
     ;;
 install-beside)

@@ -10,10 +10,18 @@
 # code, the GRUB core.img expects the EFI system partition as gpt2):
 #
 #   bios efi system system_dlkm vendor vendor_dlkm [<part>_overlay...]
-#   metadata userdata
+#   [android] metadata userdata
 #
-# The overlay partitions (androidboot.mount_overlay=std_parts) are optional:
-# those of the partitions in LAYOUT_OVERLAYS, empty by default.
+# Optional ones, by default the layout above without them:
+# - LAYOUT_SYSTEM=0: no system partitions (system images instead)
+# - LAYOUT_USERDATA=0: no metadata and userdata (user data images or
+#   directories instead)
+# - LAYOUT_ANDROID=1: an android partition, with the Android directory.
+#   The last partition when LAYOUT_USERDATA=0.
+# - the overlay partitions (androidboot.mount_overlay=std_parts) of the
+#   partitions in LAYOUT_OVERLAYS
+#
+# The last partition takes the rest of the disk.
 #
 
 # Default sizes in MiB: twice the content, at least these, so that later
@@ -23,6 +31,7 @@ LAYOUT_MIN_system=4096
 LAYOUT_MIN_system_dlkm=128
 LAYOUT_MIN_vendor=512
 LAYOUT_MIN_vendor_dlkm=512
+LAYOUT_MIN_android=4096
 LAYOUT_SIZE_bios=1
 LAYOUT_SIZE_metadata=64
 # FAT32 needs at least 33 MiB, user data at least this
@@ -36,6 +45,9 @@ LAYOUT_SYSTEM_PARTS="system system_dlkm vendor vendor_dlkm"
 # Partitions that can get an overlay partition, and those that get one
 LAYOUT_OVERLAY_PARTS="system vendor"
 LAYOUT_OVERLAYS=
+LAYOUT_SYSTEM=1
+LAYOUT_USERDATA=1
+LAYOUT_ANDROID=0
 
 # layout_overlays: names of the overlay partitions to create
 layout_overlays() {
@@ -47,11 +59,11 @@ layout_overlays() {
 
 # layout_parts <bios: 0|1>
 layout_parts() {
-    if [ "$1" = 1 ]; then
-        echo bios efi $LAYOUT_SYSTEM_PARTS $(layout_overlays) metadata userdata
-    else
-        echo efi $LAYOUT_SYSTEM_PARTS $(layout_overlays) metadata userdata
-    fi
+    echo $( [ "$1" = 1 ] && echo bios ) efi \
+        $( [ "$LAYOUT_SYSTEM" = 1 ] && echo $LAYOUT_SYSTEM_PARTS ) \
+        $(layout_overlays) \
+        $( [ "$LAYOUT_ANDROID" = 1 ] && echo android ) \
+        $( [ "$LAYOUT_USERDATA" = 1 ] && echo metadata userdata )
 }
 
 # layout_number <bios: 0|1> <name>: partition number

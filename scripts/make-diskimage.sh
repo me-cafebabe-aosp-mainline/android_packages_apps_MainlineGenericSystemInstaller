@@ -156,7 +156,8 @@ mtool mcopy -i "$esp" "$ramdisk" ::/android/ramdisk-all-combined.img
 
 uuid=$(echo "$serial" | sed 's/\(....\)\(....\)/\1-\2/' | tr a-f A-F)
 cfg=$(mktemp)
-grubcfg_disk "$title" "$uuid" "$cmdline" "$([ -n "$firmware" ] && echo 1 || echo 0)" >"$cfg"
+grubcfg_disk "$title" "$uuid" fat "$cmdline" "$([ -n "$firmware" ] && echo 1 || echo 0)" \
+    std_parts std_parts >"$cfg"
 mtool mcopy -i "$esp" "$cfg" ::/EFI/BOOT/grub.cfg
 rm -f "$cfg"
 

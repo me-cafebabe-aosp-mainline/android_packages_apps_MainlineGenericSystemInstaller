@@ -48,10 +48,12 @@ case $platform in
     ;;
 i386-pc)
     # The prefix is the EFI system partition, the second partition of a
-    # whole disk installation.
+    # whole disk installation. No modules are there: everything that may be
+    # needed is embedded, the filesystems of the android partition too.
     run grub-mkimage -d "$root/lib/grub/$platform" -O "$platform" -o "$out" \
         -p "(,gpt2)/EFI/BOOT" -c "$config" \
-        biosdisk part_gpt part_msdos fat search search_fs_uuid configfile normal linux echo test all_video gfxterm font
+        biosdisk part_gpt part_msdos fat ext2 f2fs ntfs search search_fs_uuid configfile normal linux \
+        echo test all_video gfxterm font
     ;;
 *)
     echo "mkgrub.sh: unsupported platform $platform" >&2

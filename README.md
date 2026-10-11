@@ -14,7 +14,7 @@ running system can be the live ISO, or an installed system.
 
 | Mode | Target | Result |
 |------|--------|--------|
-| Whole disk | A disk, erased | GPT with the partitions `bios` (BIOS boot), `efi` (EFI system), `system`, `system_dlkm`, `vendor`, `vendor_dlkm`, `metadata` and `userdata` (`mount_system=std_parts`). Sizes can be changed in the app (`--size`); by default twice the content, at least 1 GiB, 4 GiB, 128 MiB, 512 MiB, 512 MiB and 64 MiB, `userdata` takes the rest, as EXT4 or F2FS (`--userdata-fs`). Optional overlays (`--overlay`, `androidboot.mount_overlay`), whose files are laid over the system and vendor partitions: `std_parts` creates empty EXT4 partitions `system_overlay` and `vendor_overlay`, those given a size (`--size system_overlay=<MiB>`); `imgs` and `imgs_ram` take `<partition>_overlay.img` added to `/android` of the EFI system partition later, which other operating systems can write, for example on a USB drive. Not `dirs`: overlayfs refuses FAT32 directories. Upgrades keep the overlays. Kernel, ramdisk and firmware image in `/android` of the EFI system partition. Boots with UEFI and BIOS. |
+| Whole disk | A disk, erased | GPT, see [Whole disk layouts](#whole-disk-layouts). Boots with UEFI and BIOS. |
 | Beside another operating system | An EXT4, F2FS or NTFS partition | Images in `/android-system-<device>` (`mount_system=imgs`). User data in directories (`mount_userdata=bind_mount_dir`), or in images (`mount_userdata=imgs`, `--userdata-images`, always on NTFS; `userdata.img` EXT4 or F2FS). Boot entries, see below. |
 | Upgrade | An installation of either kind | Replaces the system, kernel, ramdisk and firmware, keeps the user data. Refuses an older build unless allowed. |
 
@@ -22,6 +22,37 @@ What gets installed is what the running system was booted from: the
 block devices mounted at `/system`, `/vendor` and the `_dlkm` mount
 points, and the kernel and ramdisk of its Android directory, found again
 by name and by the release of the running kernel.
+
+### Whole disk layouts
+
+Each part chooses where it goes, as the `androidboot.mount_*` parameter
+it sets:
+
+| Part | Option | Values |
+|------|--------|--------|
+| System | `--system` | `std_parts` (partitions, default), `imgs`, `imgs_ram` |
+| User data | `--userdata` | `std_parts` (partitions, default), `imgs` (`--userdata-size`), `bind_mount_dir` |
+| Overlays | `--overlay` | none (default), `std_parts`, `imgs`, `imgs_ram`, `dirs` |
+
+The partitions, in this order (`scripts/lib/layout.sh`):
+
+| Partition | When | Default size |
+|-----------|------|--------------|
+| `bios` | BIOS boot code | 1 MiB |
+| `efi` | Always: GRUB, and the Android directory without an `android` partition | Twice the content, at least 1 GiB |
+| `system`, `system_dlkm`, `vendor`, `vendor_dlkm` | System partitions | Twice the content, at least 4 GiB, 128 MiB, 512 MiB, 512 MiB |
+| `system_overlay`, `vendor_overlay` | Overlay partitions, those given a size (`--size system_overlay=<MiB>`) | none, empty EXT4 |
+| `android` | Images or directories for the system or the user data: the Android directory `/android`, with the kernel (`--android-fs ext4` or `f2fs`) | Twice the content, at least 4 GiB, or the rest |
+| `metadata`, `userdata` | User data partitions (`--userdata-fs ext4` or `f2fs`) | 64 MiB, the rest |
+
+Sizes can be changed in the app (`--size`). The last partition takes the
+rest. Without an `android` partition, the kernel, ramdisk and firmware
+image are in `/android` of the EFI system partition; overlay images can
+be added there later (`<partition>_overlay.img`), but not directories:
+overlayfs refuses FAT32 directories. The `android` partition can be
+written by another operating system: images and overlays of a USB drive
+can be replaced there. Upgrades keep the layout and the parameters of
+`grub.cfg`.
 
 Boot entries of an installation beside another operating system:
 
@@ -62,6 +93,7 @@ The scripts can also be run directly, as root:
 ```
 systeminstaller probe
 systeminstaller install-disk --target sdb
+systeminstaller install-disk --target sdb --system imgs --userdata bind_mount_dir --overlay dirs
 systeminstaller install-beside --target nvme0n1p3
 systeminstaller install-beside --target nvme0n1p3 --userdata-images --userdata-size 16384
 systeminstaller upgrade --target sdb

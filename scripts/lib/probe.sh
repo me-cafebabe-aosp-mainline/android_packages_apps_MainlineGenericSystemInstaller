@@ -5,8 +5,11 @@
 # probe prints, tab separated:
 #
 #   LAYOUT  <partition> <default MiB> <minimum MiB>   of a whole disk
-#           installation, userdata takes the rest. A default of 0: optional,
-#           not created unless given a size
+#           installation, the last partition takes the rest. A default of 0:
+#           optional, not created unless given a size. android: with the
+#           system images (and the kernel), before metadata and userdata.
+#           efi_android: efi (as --size efi) with an android partition, which
+#           has the kernel
 #   SERIAL  <name>   a serial port, or a virtio console (hvc)
 #   SYSTEM  <uefi|bios> <EFI bits: 64|32|> <Secure Boot: 1|0|> <arch>
 #           <device> <build date> <title> <default kernel command line>
@@ -23,26 +26,27 @@
 #
 
 # Sets MIB_<name> for what gets installed (MIB_efi: the content of the EFI
-# system partition), and MIB_DISK and MIB_BESIDE, the minimum sizes for both
-# kinds of installation with the default partition sizes
+# system partition), MIB_BESIDE, the minimum size of an installation beside
+# another operating system, and MIB_DISK_SMALLEST, the size of the smallest
+# whole disk installation (images in an android partition, user data
+# directories)
 probe_sizes() {
     local p dev mib
     MIB_kernel=$(si_mib "$(wc -c <"$SRC_DIR/kernel")")
     MIB_ramdisk=$(si_mib "$(wc -c <"$SRC_DIR/ramdisk-all-combined.img")")
     MIB_firmware=$(source_firmware_mib)
     MIB_efi=$((MIB_kernel + MIB_ramdisk + MIB_firmware + 16))
-    MIB_DISK=$((2 + LAYOUT_SIZE_metadata + LAYOUT_MIN_USERDATA))
-    [ -f "$SI_GRUB/i386-pc-core.img" ] && MIB_DISK=$((MIB_DISK + LAYOUT_SIZE_bios))
-    MIB_DISK=$((MIB_DISK + $(layout_size efi "$MIB_efi")))
     MIB_BESIDE=$((MIB_kernel + MIB_ramdisk + MIB_firmware + 64))
+    MIB_DISK_SMALLEST=$((2 + LAYOUT_HARD_MIN_efi + LAYOUT_MIN_USERDATA))
+    [ -f "$SI_GRUB/i386-pc-core.img" ] && MIB_DISK_SMALLEST=$((MIB_DISK_SMALLEST + LAYOUT_SIZE_bios))
     for p in $LAYOUT_SYSTEM_PARTS; do
         eval "dev=\$SRC_$p"
         mib=0
         [ -n "$dev" ] && mib=$(si_mib "$(si_fs_size "/dev/block/$dev")")
         eval "MIB_$p=\$mib"
-        MIB_DISK=$((MIB_DISK + $(layout_size "$p" "$mib")))
         MIB_BESIDE=$((MIB_BESIDE + mib))
     done
+    MIB_DISK_SMALLEST=$((MIB_DISK_SMALLEST + MIB_BESIDE))
 }
 
 probe_secure_boot() {
@@ -84,19 +88,34 @@ probe_os() {
 # probe_install_date <disk>: build date of a whole disk installation on
 # it, or nothing
 probe_install_date() {
-    local system esp userdata p
+    local system esp userdata android p
     system=
     esp=
     userdata=
+    android=
     for p in $(si_partitions "$1"); do
         case $(si_partname "$p") in
         system) system=$p ;;
         efi | esp) esp=$p ;;
         userdata) userdata=$p ;;
+        android) android=$p ;;
         esac
     done
-    [ -n "$system" ] && [ -n "$esp" ] && [ -n "$userdata" ] || return 1
-    si_build_date "/dev/block/$system"
+    [ -n "$esp" ] && [ -n "$system$android" ] && [ -n "$userdata$android" ] || return 1
+    if [ -n "$system" ]; then
+        si_build_date "/dev/block/$system"
+        return
+    fi
+    # System images in the android partition
+    si_mount "$android" || return 1
+    p=$SI_MNT
+    if [ -f "$p/android/system.img" ]; then
+        si_build_date "$p/android/system.img"
+        si_umount "$p"
+    else
+        si_umount "$p"
+        return 1
+    fi
 }
 
 probe_serial_ports() {
@@ -136,6 +155,8 @@ probe() {
             eval "mib=\$MIB_$p"
             printf 'LAYOUT\t%s\t%s\t%s\n' "$p" "$(layout_size "$p" "$mib")" "$(layout_minimum "$p" "$mib")"
         done
+        printf 'LAYOUT\tefi_android\t%s\t%s\n' "$(layout_size efi 16)" "$(layout_minimum efi 16)"
+        printf 'LAYOUT\tandroid\t%s\t%s\n' "$(layout_size android "$MIB_BESIDE")" "$MIB_BESIDE"
         printf 'LAYOUT\tmetadata\t%s\t%s\n' "$LAYOUT_SIZE_metadata" "$LAYOUT_HARD_MIN_metadata"
         for p in $LAYOUT_OVERLAY_PARTS; do
             printf 'LAYOUT\t%s_overlay\t0\t%s\n' "$p" "$(layout_minimum "${p}_overlay" 0)"
@@ -155,8 +176,8 @@ probe() {
             why="The running system is on this disk"
         elif echo "$busy" | grep -qx "$d"; then
             why="A partition of this disk is in use"
-        elif [ "$(si_mib "$bytes")" -lt "$MIB_DISK" ]; then
-            why="At least $MIB_DISK MiB are needed"
+        elif [ "$(si_mib "$bytes")" -lt "$MIB_DISK_SMALLEST" ]; then
+            why="At least $MIB_DISK_SMALLEST MiB are needed"
         else
             usable=1
         fi

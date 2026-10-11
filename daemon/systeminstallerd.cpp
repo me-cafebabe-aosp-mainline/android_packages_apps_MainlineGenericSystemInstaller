@@ -200,11 +200,26 @@ class SystemInstaller : public installer::BnSystemInstaller {
                 }
                 if (!request.overlay.empty()) {
                     if (request.overlay != "std_parts" && request.overlay != "imgs" &&
-                        request.overlay != "imgs_ram") {
+                        request.overlay != "imgs_ram" && request.overlay != "dirs") {
                         return ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
                     }
                     args.insert(args.end(), {"--overlay", request.overlay});
                 }
+                if (request.mountSystem != "std_parts" && request.mountSystem != "imgs" &&
+                    request.mountSystem != "imgs_ram") {
+                    return ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+                }
+                if (request.mountUserdata != "std_parts" && request.mountUserdata != "imgs" &&
+                    request.mountUserdata != "bind_mount_dir") {
+                    return ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+                }
+                if (request.androidFs != "ext4" && request.androidFs != "f2fs") {
+                    return ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+                }
+                args.insert(args.end(), {"--system", request.mountSystem, "--userdata",
+                                         request.mountUserdata, "--android-fs", request.androidFs,
+                                         "--userdata-size",
+                                         std::to_string(request.userdataSizeMiB)});
                 break;
             case installer::InstallRequest::MODE_BESIDE:
                 args = {"install-beside", "--userdata-size",

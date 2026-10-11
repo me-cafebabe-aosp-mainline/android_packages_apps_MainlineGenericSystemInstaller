@@ -33,11 +33,32 @@ install_grub_efi() {
     cp "$SI_GRUB/unicode.pf2" "$1/"
 }
 
+# install_disk_param <grub.cfg> <name>: value of androidboot.<name> in the
+# first entry of a grub.cfg
+install_disk_param() {
+    sed -n "s/.*androidboot\.$2=\([a-z_]*\).*/\1/p" "$1" 2>/dev/null | head -n 1
+}
+
 # install_disk <disk> <kernel command line> <upgrade: 1|0> <allow downgrade: 1|0>
-# SIZE_<partition> (MiB) overrides the default size of a partition,
-# USERDATA_FS (ext4 or f2fs) is the filesystem of userdata
+#
+# For a new installation:
+#   SIZE_<partition>  MiB instead of the default size of a partition
+#   SYSTEM_MODE       androidboot.mount_system: std_parts (default), imgs,
+#                     imgs_ram
+#   USERDATA_MODE     androidboot.mount_userdata: std_parts (default), imgs,
+#                     bind_mount_dir
+#   OVERLAY           androidboot.mount_overlay, or empty for none
+#   USERDATA_FS       ext4 or f2fs: the userdata partition or userdata.img
+#   USERDATA_SIZE     MiB of userdata.img
+#   ANDROID_FS        ext4 or f2fs: the android partition
+#
+# With images or directories for the system or the user data, an android
+# partition holds the Android directory, with the kernel. Otherwise the
+# Android directory is on the EFI system partition, and only overlay images
+# can be added there (FAT32). Upgrades keep what the installation has.
 install_disk() {
-    local disk dev bios p src part mib sizes total done_mib from esp firmware need size min overlay
+    local disk dev bios p src part mib sizes total done_mib from esp m dir f firmware need size min \
+        last fsmod system_mode userdata_mode overlay
     disk=$1
     dev=/dev/block/$disk
     [ -b "$dev" ] || si_die "No disk $disk"
@@ -52,24 +73,64 @@ install_disk() {
     if [ "$3" = 1 ]; then
         for p in $(si_partitions "$disk"); do
             case $(si_partname "$p") in
-            bios | efi | system | system_dlkm | vendor | vendor_dlkm | metadata | userdata | \
+            bios | efi | system | system_dlkm | vendor | vendor_dlkm | metadata | userdata | android | \
                 system_overlay | vendor_overlay)
                 eval "PART_$(si_partname "$p")=\$p"
                 ;;
             esp) PART_efi=$p ;;
             esac
         done
-        [ -n "$PART_efi" ] && [ -n "$PART_system" ] && [ -n "$PART_userdata" ] ||
-            si_die "No installation on $disk"
-        install_check_downgrade "$(si_build_date "/dev/block/$PART_system")" "$4"
-        for p in $LAYOUT_SYSTEM_PARTS; do
-            eval "src=\$SRC_$p part=\$PART_$p mib=\$MIB_$p"
-            [ -n "$src" ] || continue
-            [ -n "$part" ] || si_die "The installation has no $p partition"
-            [ "$mib" -le "$(si_mib "$(si_size "$part")")" ] || si_die "The $p partition is too small"
+        [ -n "$PART_efi" ] || si_die "No installation on $disk"
+        si_mount "$PART_efi" || si_die "Could not mount the EFI system partition"
+        system_mode=$(install_disk_param "$SI_MNT/EFI/BOOT/grub.cfg" mount_system)
+        userdata_mode=$(install_disk_param "$SI_MNT/EFI/BOOT/grub.cfg" mount_userdata)
+        overlay=$(install_disk_param "$SI_MNT/EFI/BOOT/grub.cfg" mount_overlay)
+        si_umount "$SI_MNT"
+        for p in $LAYOUT_OVERLAY_PARTS; do
+            eval "[ -n \"\$PART_${p}_overlay\" ]" && overlay=${overlay:-std_parts}
         done
+        [ -n "$PART_system" ] && system_mode=std_parts
+        [ -n "$PART_userdata" ] && userdata_mode=std_parts
+        [ -n "$system_mode" ] && [ -n "$userdata_mode" ] || si_die "No installation on $disk"
+        if [ -n "$PART_android" ]; then
+            si_mount "$PART_android" rw || si_die "Could not mount the android partition"
+            if [ "$system_mode" != std_parts ]; then
+                [ -f "$SI_MNT/android/system.img" ] || si_die "No installation on $disk"
+                install_check_downgrade "$(si_build_date "$SI_MNT/android/system.img")" "$4"
+                # Files are replaced one by one: room for the biggest one
+                need=$MIB_firmware
+                for p in $LAYOUT_SYSTEM_PARTS; do
+                    eval "mib=\$MIB_$p"
+                    [ "$mib" -gt "$need" ] && need=$mib
+                done
+                need=$((need + 64))
+                [ "$(si_free "$SI_MNT")" -ge "$need" ] ||
+                    si_die "At least $need MiB of free space are needed on the android partition"
+            fi
+            si_umount "$SI_MNT"
+        elif [ "$system_mode" != std_parts ] || [ "$userdata_mode" != std_parts ]; then
+            si_die "No installation on $disk"
+        fi
+        if [ "$system_mode" = std_parts ]; then
+            install_check_downgrade "$(si_build_date "/dev/block/$PART_system")" "$4"
+            for p in $LAYOUT_SYSTEM_PARTS; do
+                eval "src=\$SRC_$p part=\$PART_$p mib=\$MIB_$p"
+                [ -n "$src" ] || continue
+                [ -n "$part" ] || si_die "The installation has no $p partition"
+                [ "$mib" -le "$(si_mib "$(si_size "$part")")" ] || si_die "The $p partition is too small"
+            done
+        fi
         [ -n "$PART_bios" ] || bios=0
     else
+        system_mode=${SYSTEM_MODE:-std_parts}
+        userdata_mode=${USERDATA_MODE:-std_parts}
+        LAYOUT_SYSTEM=0
+        [ "$system_mode" = std_parts ] && LAYOUT_SYSTEM=1
+        LAYOUT_USERDATA=0
+        [ "$userdata_mode" = std_parts ] && LAYOUT_USERDATA=1
+        LAYOUT_ANDROID=0
+        [ "$LAYOUT_SYSTEM" = 1 ] && [ "$LAYOUT_USERDATA" = 1 ] || LAYOUT_ANDROID=1
+
         # Overlay partitions: those given a size, which means OVERLAY=std_parts
         LAYOUT_OVERLAYS=
         for p in $LAYOUT_OVERLAY_PARTS; do
@@ -77,29 +138,63 @@ install_disk() {
             [ "$size" -gt 0 ] 2>/dev/null && LAYOUT_OVERLAYS="$LAYOUT_OVERLAYS $p"
         done
         [ -z "$OVERLAY" ] && [ -n "$LAYOUT_OVERLAYS" ] && OVERLAY=std_parts
-        [ "$OVERLAY" = std_parts ] || LAYOUT_OVERLAYS=
-        [ "$OVERLAY" = std_parts ] && [ -z "$LAYOUT_OVERLAYS" ] &&
+        overlay=$OVERLAY
+        [ "$overlay" = std_parts ] || LAYOUT_OVERLAYS=
+        [ "$overlay" = std_parts ] && [ -z "$LAYOUT_OVERLAYS" ] &&
             si_die "No overlay partition was given a size"
+        # overlayfs refuses directories on FAT32 (own name hashing)
+        [ "$overlay" = dirs ] && [ "$LAYOUT_ANDROID" = 0 ] &&
+            si_die "Overlay directories need an android partition: images or directories for the system or the user data"
+
         sizes=
-        need=$((2 + LAYOUT_MIN_USERDATA))
+        need=2
         [ "$bios" = 1 ] && need=$((need + LAYOUT_SIZE_bios))
-        for p in efi $LAYOUT_SYSTEM_PARTS $(layout_overlays) metadata; do
-            if [ "$p" = metadata ]; then
+        last=$(layout_parts "$bios" | awk '{ print $NF }')
+        for p in $(layout_parts "$bios"); do
+            case $p in
+            bios | "$last") continue ;;
+            efi)
+                # Only GRUB with an android partition
+                mib=$MIB_efi
+                [ "$LAYOUT_ANDROID" = 1 ] && mib=16
+                size=$(layout_size efi "$mib")
+                ;;
+            metadata)
                 mib=0
                 size=$LAYOUT_SIZE_metadata
-            elif [ "$p" != "${p%_overlay}" ]; then
+                ;;
+            *_overlay)
                 mib=0
                 size=0
-            else
+                ;;
+            android)
+                # Before metadata and userdata: the system images and the kernel
+                mib=$MIB_BESIDE
+                size=$(layout_size android "$mib")
+                ;;
+            *)
                 eval "mib=\$MIB_$p"
                 size=$(layout_size "$p" "$mib")
-            fi
+                ;;
+            esac
             eval "size=\${SIZE_$p:-$size}"
             min=$(layout_minimum "$p" "$mib")
             [ "$size" -ge "$min" ] 2>/dev/null || si_die "The $p partition needs at least $min MiB"
             sizes="$sizes $size"
             need=$((need + size))
         done
+        # The last partition takes the rest
+        if [ "$last" = userdata ]; then
+            need=$((need + LAYOUT_MIN_USERDATA))
+        else
+            need=$((need + MIB_BESIDE))
+            [ "$LAYOUT_SYSTEM" = 1 ] &&
+                need=$((need - MIB_system - MIB_system_dlkm - MIB_vendor - MIB_vendor_dlkm))
+            case $userdata_mode in
+            imgs) need=$((need + ${USERDATA_SIZE:-16384} + LAYOUT_SIZE_metadata)) ;;
+            *) need=$((need + LAYOUT_MIN_USERDATA)) ;;
+            esac
+        fi
         [ "$(si_mib "$(si_size "$disk")")" -ge "$need" ] || si_die "At least $need MiB are needed"
         blockdev --rereadpt "$dev" || si_die "The disk is in use"
     fi
@@ -122,33 +217,47 @@ install_disk() {
         eval "mib=\$MIB_$p"
         total=$((total + mib))
     done
-    done_mib=0
-    for p in $LAYOUT_SYSTEM_PARTS; do
-        eval "src=\$SRC_$p part=\$PART_$p mib=\$MIB_$p"
-        [ -n "$src" ] || continue
-        from=$((5 + 70 * done_mib / total))
-        done_mib=$((done_mib + mib))
-        si_copy "/dev/block/$src" "/dev/block/$part" "$mib" "$from" $((5 + 70 * done_mib / total)) "Copying $p"
-    done
+    if [ "$system_mode" = std_parts ]; then
+        done_mib=0
+        for p in $LAYOUT_SYSTEM_PARTS; do
+            eval "src=\$SRC_$p part=\$PART_$p mib=\$MIB_$p"
+            [ -n "$src" ] || continue
+            from=$((5 + 70 * done_mib / total))
+            done_mib=$((done_mib + mib))
+            si_copy "/dev/block/$src" "/dev/block/$part" "$mib" "$from" $((5 + 70 * done_mib / total)) "Copying $p"
+        done
+    fi
 
     if [ "$3" != 1 ]; then
-        si_progress 76 "Formatting metadata as EXT4 and userdata as $(echo "${USERDATA_FS:-ext4}" | tr a-z A-Z)"
-        si_mkfs_userdata "/dev/block/$PART_metadata" ext4 metadata ||
-            si_die "Could not format the metadata partition"
-        si_mkfs_userdata "/dev/block/$PART_userdata" "${USERDATA_FS:-ext4}" userdata ||
-            si_die "Could not format the userdata partition"
+        if [ "$LAYOUT_USERDATA" = 1 ]; then
+            si_progress 76 "Formatting metadata as EXT4 and userdata as $(echo "${USERDATA_FS:-ext4}" | tr a-z A-Z)"
+            si_mkfs_userdata "/dev/block/$PART_metadata" ext4 metadata ||
+                si_die "Could not format the metadata partition"
+            si_mkfs_userdata "/dev/block/$PART_userdata" "${USERDATA_FS:-ext4}" userdata ||
+                si_die "Could not format the userdata partition"
+        fi
+        if [ "$LAYOUT_ANDROID" = 1 ]; then
+            si_progress 77 "Formatting the android partition as $(echo "${ANDROID_FS:-ext4}" | tr a-z A-Z)"
+            si_mkfs_userdata "/dev/block/$PART_android" "${ANDROID_FS:-ext4}" android ||
+                si_die "Could not format the android partition"
+        fi
         for p in $(layout_overlays); do
             si_progress 79 "Formatting the $p partition as EXT4"
             eval "part=\$PART_$p"
             si_mkfs_userdata "/dev/block/$part" ext4 "$p" || si_die "Could not format the $p partition"
             # Its root is laid over the one of the partition: nothing in it
             if si_mount "$part" rw; then
-                rmdir "$SI_MNT/lost+found"
+                rmdir "${SI_MNT:?}/lost+found"
                 si_umount "$SI_MNT"
             fi
         done
         si_progress 80 "Formatting the EFI system partition as FAT32"
-        newfs_msdos -F 32 -L ESP "/dev/block/$PART_efi" >/dev/null ||
+        # FAT32 needs at least 65525 clusters: newfs_msdos picks too big
+        # ones for some sizes (16 KiB for 1 GiB). 4 KiB, or 512 bytes for
+        # small partitions.
+        size=8
+        [ "$(si_mib "$(si_size "$PART_efi")")" -ge 300 ] || size=1
+        newfs_msdos -F 32 -c "$size" -L ESP "/dev/block/$PART_efi" >/dev/null ||
             si_die "Could not format the EFI system partition"
     fi
 
@@ -159,35 +268,84 @@ install_disk() {
             si_die "Could not install the BIOS boot code"
     fi
 
-    si_progress 82 "Copying the kernel"
     si_mount "$PART_efi" rw || si_die "Could not mount the EFI system partition"
     esp=$SI_MNT
-    mkdir -p "$esp/EFI/BOOT" "$esp/android"
+    mkdir -p "$esp/EFI/BOOT"
     install_grub_efi "$esp/EFI/BOOT" fallback || si_die "Could not copy GRUB"
-    cp "$SRC_DIR/kernel" "$SRC_DIR/ramdisk-all-combined.img" "$esp/android/" ||
-        si_die "Could not copy the kernel"
-    si_progress 88 "Copying the firmware"
-    rm -f "$esp/android/firmware.img"
-    if source_write_firmware "$esp/android/firmware.img"; then
-        firmware=1
+    # The Android directory: on the android partition, or on the EFI system
+    # partition
+    if [ -n "$PART_android" ]; then
+        si_mount "$PART_android" rw || si_die "Could not mount the android partition"
+        m=$SI_MNT
+        case $SI_FSTYPE in
+        f2fs) fsmod=f2fs ;;
+        *) fsmod=ext2 ;;
+        esac
+        part=$PART_android
     else
-        rm -f "$esp/android/firmware.img"
-        firmware=0
+        m=$esp
+        fsmod=fat
+        part=$PART_efi
     fi
-    if [ "$3" = 1 ]; then
-        # Keep the overlays of the installation
-        overlay=$(sed -n 's/.*androidboot\.mount_overlay=\([a-z_]*\).*/\1/p' \
-            "$esp/EFI/BOOT/grub.cfg" 2>/dev/null | head -n 1)
-        for p in $LAYOUT_OVERLAY_PARTS; do
-            eval "[ -n \"\$PART_${p}_overlay\" ]" && overlay=${overlay:-std_parts}
+    dir=$m/android
+    mkdir -p "$dir"
+
+    if [ "$system_mode" != std_parts ]; then
+        done_mib=0
+        for p in $LAYOUT_SYSTEM_PARTS; do
+            eval "src=\$SRC_$p mib=\$MIB_$p"
+            [ -n "$src" ] || continue
+            from=$((5 + 70 * done_mib / total))
+            done_mib=$((done_mib + mib))
+            rm -f "$dir/$p.img.new"
+            si_copy "/dev/block/$src" "$dir/$p.img.new" "$mib" "$from" $((5 + 70 * done_mib / total)) "Copying $p"
+            mv -f "$dir/$p.img.new" "$dir/$p.img"
         done
-    else
-        overlay=$OVERLAY
     fi
-    grubcfg_disk "$(si_title)" "$(si_blkid "$PART_efi" UUID)" "$2" "$firmware" "$overlay" \
-        >"$esp/EFI/BOOT/grub.cfg"
-    si_save_log "$esp/android"
+
+    si_progress 82 "Copying the kernel"
+    for f in kernel ramdisk-all-combined.img; do
+        cp "$SRC_DIR/$f" "$dir/$f.new" && mv -f "$dir/$f.new" "$dir/$f" || si_die "Could not copy $f"
+    done
+    si_progress 88 "Copying the firmware"
+    rm -f "$dir/firmware.img.new"
+    if source_write_firmware "$dir/firmware.img.new"; then
+        mv -f "$dir/firmware.img.new" "$dir/firmware.img"
+    else
+        rm -f "$dir/firmware.img.new"
+    fi
+    firmware=0
+    [ -f "$dir/firmware.img" ] && firmware=1
+
+    if [ "$3" != 1 ]; then
+        case $userdata_mode in
+        imgs)
+            si_progress 92 "Creating userdata.img as $(echo "${USERDATA_FS:-ext4}" | tr a-z A-Z)"
+            truncate -s "${USERDATA_SIZE:-16384}M" "$dir/userdata.img" &&
+                si_mkfs_userdata "$dir/userdata.img" "${USERDATA_FS:-ext4}" ||
+                si_die "Could not create userdata.img"
+            truncate -s "${LAYOUT_SIZE_metadata}M" "$dir/metadata.img" &&
+                si_mkfs_userdata "$dir/metadata.img" ext4 ||
+                si_die "Could not create metadata.img"
+            ;;
+        bind_mount_dir)
+            si_progress 92 "Creating the user data directories"
+            mkdir -m 0771 "$dir/userdata" "$dir/metadata" || si_die "Could not create the user data"
+            ;;
+        esac
+        if [ "$overlay" = dirs ]; then
+            for p in $LAYOUT_OVERLAY_PARTS; do
+                mkdir -p "$dir/${p}_overlay"
+            done
+        fi
+    fi
+
+    si_progress 96 "Adding the boot entries"
+    grubcfg_disk "$(si_title)" "$(si_blkid "$part" UUID)" "$fsmod" "$2" "$firmware" \
+        "$system_mode" "$userdata_mode" "$overlay" >"$esp/EFI/BOOT/grub.cfg"
+    si_save_log "$dir"
     sync
+    [ "$m" = "$esp" ] || si_umount "$m"
     si_umount "$esp"
 
     sync

@@ -42,7 +42,8 @@ AIDL results and callbacks. The app only asks and shows.
 
 `scripts/lib/layout.sh`, `bootcode.sh` and `grubcfg.sh` are shared with
 `scripts/make-diskimage.sh`, which runs on the build host (`/bin/sh`).
-A whole disk installation and the disk image must stay identical.
+A whole disk installation with the default layout (partitions for
+everything) and the disk image must stay identical.
 
 ## Hard rules
 

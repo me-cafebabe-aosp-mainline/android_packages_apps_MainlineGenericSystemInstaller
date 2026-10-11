@@ -121,6 +121,10 @@ private enum class Screen { LOADING, MODES, TARGETS, PARTITIONS, OPTIONS, CONFIR
 /** Like the scripts: room for user data, partition table and BIOS boot partition */
 private const val USERDATA_MIN_MIB = 4096L
 private const val OVERHEAD_MIB = 4L
+private const val METADATA_IMG_MIB = 64L
+
+/** Partitions of the system, in the layout of a whole disk installation with system partitions */
+private val SYSTEM_PARTITIONS = setOf("system", "system_dlkm", "vendor", "vendor_dlkm")
 
 private data class Action(val label: String, val enabled: Boolean = true, val onClick: () -> Unit)
 
@@ -160,6 +164,10 @@ class MainActivity : ComponentActivity() {
     private var userdataImages by mutableStateOf(false)
     /** androidboot.mount_overlay of a whole disk installation, "" for none */
     private var overlay by mutableStateOf("")
+    /** androidboot.mount_system and mount_userdata of a whole disk installation */
+    private var systemLayout by mutableStateOf("std_parts")
+    private var userdataLayout by mutableStateOf("std_parts")
+    private var androidFs by mutableStateOf("ext4")
     /** Partition sizes in MiB, as typed, for the disk in sizesTarget */
     private val sizes = mutableStateMapOf<String, String>()
     private var sizesTarget = ""
@@ -209,7 +217,7 @@ class MainActivity : ComponentActivity() {
         val request = InstallRequest().also {
             it.mode = mode
             it.target = target
-            it.userdataSizeMiB = (userdataGiB.toIntOrNull() ?: 16).coerceAtLeast(4) * 1024
+            it.userdataSizeMiB = userdataSizeMiB()
             // Strings must not be null: the daemon side is not nullable
             it.cmdline = if (cmdline.trim() == p.system.defaultCmdline) "" else cmdline.trim()
             it.bootEntries = bootEntries
@@ -217,12 +225,15 @@ class MainActivity : ComponentActivity() {
             it.userdataFs = userdataFs
             it.userdataImages = mode == InstallRequest.MODE_BESIDE && userdataImages
             it.overlay = if (mode == InstallRequest.MODE_DISK) overlay else ""
+            it.mountSystem = systemLayout
+            it.mountUserdata = userdataLayout
+            it.androidFs = androidFs
             it.sizes = if (mode == InstallRequest.MODE_DISK) {
                 // Sizes of overlay partitions (the optional ones) only with them
-                p.layout.filter { l -> l.defaultMiB != 0 || overlay == "std_parts" }.mapNotNull { l ->
+                layoutRows(p).filter { (_, l) -> l.defaultMiB != 0 || overlay == "std_parts" }.mapNotNull { (n, l) ->
                     sizes[l.name]?.toIntOrNull()?.takeIf { v -> v != l.defaultMiB }?.let { v ->
                         PartitionSize().apply {
-                            name = l.name
+                            name = n
                             sizeMiB = v
                         }
                     }
@@ -443,13 +454,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Whole disk installation: whether there is an android partition, for images and directories */
+    private fun hasAndroidPartition() = systemLayout != "std_parts" || userdataLayout != "std_parts"
+
+    /**
+     * Partitions of the chosen layout (but userdata or android, which takes the rest), with the
+     * name to give to the installer: efi_android is efi with an android partition
+     */
+    private fun layoutRows(p: ProbeResult): List<Pair<String, PartitionLayout>> {
+        val android = hasAndroidPartition()
+        return p.layout.mapNotNull { l ->
+            when {
+                l.name == "efi" -> if (android) null else "efi" to l
+                l.name == "efi_android" -> if (android) "efi" to l else null
+                l.name in SYSTEM_PARTITIONS -> if (systemLayout == "std_parts") l.name to l else null
+                l.name == "android" -> if (android && userdataLayout == "std_parts") l.name to l else null
+                l.name == "metadata" -> if (userdataLayout == "std_parts") l.name to l else null
+                else -> l.name to l
+            }
+        }
+    }
+
     @Composable
     private fun Partitions() {
         val p = probe ?: return
         fun size(mib: Long) = formatMiB(mib)
         val disk = p.disks.firstOrNull { it.name == target } ?: return
         val diskMiB = disk.sizeBytes / 1048576
-        val parts = p.layout.toList()
+        val rows = layoutRows(p)
+        val parts = rows.map { it.second }
         // A default of 0: optional (overlay partitions), 0 does not create it
         fun optional(i: Int) = parts[i].defaultMiB == 0
         val values = parts.indices.map { i ->
@@ -459,23 +492,32 @@ class MainActivity : ComponentActivity() {
         fun invalid(i: Int) = values[i] < parts[i].minimumMiB && !(optional(i) && values[i] == 0L)
         val noOverlayPartition = overlay == "std_parts" && parts.indices.none { optional(it) && values[it] > 0 }
         val invalid = parts.indices.any { invalid(it) } || noOverlayPartition
-        val userdataMiB = diskMiB - OVERHEAD_MIB - values.sum()
+        // The last partition takes the rest: userdata, or android with the images or directories
+        val restName = if (userdataLayout == "std_parts") "userdata" else "android"
+        val restMiB = diskMiB - OVERHEAD_MIB - values.sum()
+        val restNeed = if (userdataLayout == "std_parts") {
+            USERDATA_MIN_MIB
+        } else {
+            (p.layout.firstOrNull { it.name == "android" }?.minimumMiB?.toLong() ?: 0L) +
+                if (userdataLayout == "imgs") userdataSizeMiB().toLong() + METADATA_IMG_MIB else USERDATA_MIN_MIB
+        }
         val colors = MaterialTheme.colorScheme.let {
             listOf(it.primary, it.secondary, it.tertiary, it.error, it.primaryContainer, it.tertiaryContainer)
         }
         fun color(i: Int) = colors[i % colors.size]
-        val userdataColor = MaterialTheme.colorScheme.surfaceVariant
+        val restColor = MaterialTheme.colorScheme.surfaceVariant
 
         ListPage(
             title = stringResource(R.string.partitions_title),
             subtitle = "${disk.name} · ${size(diskMiB)}",
-            primary = Action(stringResource(R.string.next), !invalid && userdataMiB >= USERDATA_MIN_MIB) {
+            primary = Action(stringResource(R.string.next), !invalid && restMiB >= restNeed) {
                 screen = Screen.OPTIONS
             },
             secondary = Action(stringResource(R.string.back)) { back() },
         ) {
+            item { LayoutChoice() }
             item {
-                UsageBar(values.indices.map { values[it] to color(it) } + (userdataMiB to userdataColor))
+                UsageBar(values.indices.map { values[it] to color(it) } + (restMiB to restColor))
             }
             item {
                 Row(
@@ -483,20 +525,20 @@ class MainActivity : ComponentActivity() {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Dot(userdataColor)
+                    Dot(restColor)
                     Text(
-                        if (userdataMiB >= USERDATA_MIN_MIB) {
-                            stringResource(R.string.userdata_rest, size(userdataMiB))
+                        if (restMiB >= restNeed) {
+                            stringResource(R.string.partition_rest, restName, size(restMiB))
                         } else {
-                            stringResource(R.string.userdata_too_small, size(USERDATA_MIN_MIB))
+                            stringResource(R.string.partition_too_small, restName, size(restNeed))
                         },
                         style = MaterialTheme.typography.bodyLarge,
-                        color = if (userdataMiB >= USERDATA_MIN_MIB) Color.Unspecified
+                        color = if (restMiB >= restNeed) Color.Unspecified
                                 else MaterialTheme.colorScheme.error,
                     )
                 }
             }
-            itemsIndexed(parts) { i, part ->
+            itemsIndexed(rows) { i, (name, part) ->
                 if (optional(i) && (i == 0 || !optional(i - 1))) {
                     OverlayChoice(noOverlayPartition)
                 }
@@ -504,7 +546,7 @@ class MainActivity : ComponentActivity() {
                 OutlinedTextField(
                     value = sizes[part.name] ?: "${part.defaultMiB}",
                     onValueChange = { v -> sizes[part.name] = v.filter(Char::isDigit).take(9) },
-                    label = { Text(part.name) },
+                    label = { Text(name) },
                     leadingIcon = { Dot(color(i)) },
                     suffix = { Text("MiB") },
                     supportingText = {
@@ -533,33 +575,95 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Overlays of a whole disk installation (androidboot.mount_overlay), above the sizes of overlay partitions */
     @Composable
-    private fun OverlayChoice(noOverlayPartition: Boolean) {
-        val choices = listOf(
-            "" to R.string.overlay_none,
-            "std_parts" to R.string.overlay_std_parts,
-            "imgs" to R.string.overlay_imgs,
-            "imgs_ram" to R.string.overlay_imgs_ram,
+    private fun UserdataSize() {
+        OutlinedTextField(
+            value = userdataGiB,
+            onValueChange = { v -> userdataGiB = v.filter(Char::isDigit) },
+            label = { Text(stringResource(R.string.userdata_size)) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
         )
-        Column(Modifier.padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionTitle(stringResource(R.string.overlays))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(choices.size) { i ->
-                    val (value, label) = choices[i]
-                    FilterChip(
-                        selected = overlay == value,
-                        onClick = { overlay = value },
-                        label = { Text(stringResource(label)) },
-                    )
+    }
+
+    /** Chips of a choice, the value selected among (value, label) */
+    @Composable
+    private fun ChipChoice(choices: List<Pair<String, Int>>, selected: String, onSelect: (String) -> Unit) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(choices.size) { i ->
+                val (value, label) = choices[i]
+                FilterChip(
+                    selected = selected == value,
+                    onClick = { onSelect(value) },
+                    label = { Text(stringResource(label)) },
+                )
+            }
+        }
+    }
+
+    /** Where the system and the user data go: partitions, or images and directories in an android partition */
+    @Composable
+    private fun LayoutChoice() {
+        Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionTitle(stringResource(R.string.layout_system))
+            ChipChoice(
+                listOf(
+                    "std_parts" to R.string.layout_partitions,
+                    "imgs" to R.string.layout_images,
+                    "imgs_ram" to R.string.layout_images_ram,
+                ),
+                systemLayout,
+            ) { systemLayout = it }
+            SectionTitle(stringResource(R.string.layout_userdata))
+            ChipChoice(
+                listOf(
+                    "std_parts" to R.string.layout_partitions,
+                    "imgs" to R.string.layout_images,
+                    "bind_mount_dir" to R.string.layout_dirs,
+                ),
+                userdataLayout,
+            ) { userdataLayout = it }
+            if (userdataLayout == "imgs") UserdataSize()
+            if (hasAndroidPartition()) {
+                SectionTitle(stringResource(R.string.android_fs))
+                ChipChoice(listOf("ext4" to R.string.fs_ext4, "f2fs" to R.string.fs_f2fs), androidFs) {
+                    androidFs = it
                 }
             }
             Text(
                 stringResource(
+                    if (hasAndroidPartition()) R.string.layout_android_summary else R.string.layout_partitions_summary
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+
+    /** Overlays of a whole disk installation (androidboot.mount_overlay), above the sizes of overlay partitions */
+    @Composable
+    private fun OverlayChoice(noOverlayPartition: Boolean) {
+        // overlayfs refuses directories on FAT32: only in an android partition
+        if (overlay == "dirs" && !hasAndroidPartition()) overlay = ""
+        val choices = buildList {
+            add("" to R.string.overlay_none)
+            add("std_parts" to R.string.layout_partitions)
+            add("imgs" to R.string.layout_images)
+            add("imgs_ram" to R.string.layout_images_ram)
+            if (hasAndroidPartition()) add("dirs" to R.string.layout_dirs)
+        }
+        Column(Modifier.padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionTitle(stringResource(R.string.overlays))
+            ChipChoice(choices, overlay) { overlay = it }
+            Text(
+                stringResource(
                     when (overlay) {
                         "std_parts" -> R.string.overlay_std_parts_summary
-                        "imgs" -> R.string.overlay_imgs_summary
+                        "imgs" -> if (hasAndroidPartition()) R.string.overlay_imgs_android_summary
+                                  else R.string.overlay_imgs_summary
                         "imgs_ram" -> R.string.overlay_imgs_ram_summary
+                        "dirs" -> R.string.overlay_dirs_summary
                         else -> R.string.overlay_none_summary
                     }
                 ),
@@ -596,11 +700,18 @@ class MainActivity : ComponentActivity() {
     private fun isNtfsTarget() = mode == InstallRequest.MODE_BESIDE &&
         probe?.partitions?.any { it.name == target && it.fsType == "ntfs" } == true
 
-    /** Beside another operating system: user data in images, always on NTFS */
-    private fun hasUserdataImages() = mode == InstallRequest.MODE_BESIDE && (userdataImages || isNtfsTarget())
+    /** User data in images: beside another operating system (always on NTFS), or on a whole disk */
+    private fun hasUserdataImages() = when (mode) {
+        InstallRequest.MODE_BESIDE -> userdataImages || isNtfsTarget()
+        InstallRequest.MODE_DISK -> userdataLayout == "imgs"
+        else -> false
+    }
 
     /** Whether userdata gets a filesystem of its own: a partition, or an image */
-    private fun hasUserdataFs() = mode == InstallRequest.MODE_DISK || hasUserdataImages()
+    private fun hasUserdataFs() =
+        (mode == InstallRequest.MODE_DISK && userdataLayout == "std_parts") || hasUserdataImages()
+
+    private fun userdataSizeMiB() = (userdataGiB.toIntOrNull() ?: 16).coerceAtLeast(4) * 1024
 
     private fun hasBootEntries() = when (mode) {
         InstallRequest.MODE_BESIDE -> true
@@ -669,17 +780,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            if (hasUserdataImages()) {
-                item {
-                    OutlinedTextField(
-                        value = userdataGiB,
-                        onValueChange = { v -> userdataGiB = v.filter(Char::isDigit) },
-                        label = { Text(stringResource(R.string.userdata_size)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+            // On the partition sizes page for a whole disk
+            if (hasUserdataImages() && mode == InstallRequest.MODE_BESIDE) {
+                item { UserdataSize() }
             }
             if (switches.isNotEmpty()) item { Spacer(Modifier.height(8.dp)) }
             itemsIndexed(switches) { index, (title, summary, which) ->
