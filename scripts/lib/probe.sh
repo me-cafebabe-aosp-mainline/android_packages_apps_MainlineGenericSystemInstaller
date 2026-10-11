@@ -107,8 +107,9 @@ probe_serial_ports() {
             # 8250 also registers ports that are not there, of type 0
             [ "$(cat "$t/type" 2>/dev/null)" != 0 ] || continue
             ;;
-        # Only there when a backend (virtio console...) created them
-        hvc[0-9]*) ;;
+        # All of them are registered, the ones without a backend (virtio
+        # console...) can not be opened
+        hvc[0-9]*) (exec 3<"/dev/$n") 2>/dev/null || continue ;;
         tty | tty[0-9]* | ttynull) continue ;;
         tty*) [ -e "$t/device" ] || continue ;;
         *) continue ;;
