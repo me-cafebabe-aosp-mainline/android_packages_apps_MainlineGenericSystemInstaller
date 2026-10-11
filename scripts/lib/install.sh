@@ -118,12 +118,12 @@ install_disk() {
     done
 
     if [ "$3" != 1 ]; then
-        si_progress 76 "Formatting the user data partitions"
+        si_progress 76 "Formatting metadata as EXT4 and userdata as $(echo "${USERDATA_FS:-ext4}" | tr a-z A-Z)"
         si_mkfs_userdata "/dev/block/$PART_metadata" ext4 metadata ||
             si_die "Could not format the metadata partition"
         si_mkfs_userdata "/dev/block/$PART_userdata" "${USERDATA_FS:-ext4}" userdata ||
             si_die "Could not format the userdata partition"
-        si_progress 80 "Formatting the EFI system partition"
+        si_progress 80 "Formatting the EFI system partition as FAT32"
         newfs_msdos -F 32 -L ESP "/dev/block/$PART_efi" >/dev/null ||
             si_die "Could not format the EFI system partition"
     fi
@@ -355,8 +355,8 @@ install_beside() {
     fi
 
     if [ "$5" != 1 ]; then
-        si_progress 92 "Creating the user data"
         if [ "$mode" = imgs ]; then
+            si_progress 92 "Creating userdata.img as $(echo "${USERDATA_FS:-ext4}" | tr a-z A-Z)"
             truncate -s "${2}M" "$dir/userdata.img" &&
                 si_mkfs_userdata "$dir/userdata.img" "${USERDATA_FS:-ext4}" ||
                 si_die "Could not create userdata.img"
@@ -364,6 +364,7 @@ install_beside() {
                 si_mkfs_userdata "$dir/metadata.img" ext4 ||
                 si_die "Could not create metadata.img"
         else
+            si_progress 92 "Creating the user data directories"
             mkdir -m 0771 "$dir/userdata" "$dir/metadata" || si_die "Could not create the user data"
         fi
     fi
