@@ -9,7 +9,6 @@ package device.mainline.generic.installer
 
 import android.os.Bundle
 import android.os.PowerManager
-import android.text.format.Formatter
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -113,6 +112,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import java.text.DateFormat
 import java.util.Date
+import java.util.Locale
 import java.util.concurrent.Executors
 
 private enum class Screen { LOADING, MODES, TARGETS, PARTITIONS, OPTIONS, CONFIRM, PROGRESS, DONE, FAILED }
@@ -130,6 +130,16 @@ private data class Choice(
     val summary: String,
     val enabled: Boolean,
 )
+
+/** Binary units only, like the partition sizes: MiB below 1 GiB, GiB above */
+private fun formatMiB(mib: Long): String = if (mib < 1024) {
+    "$mib MiB"
+} else {
+    val gib = mib / 1024.0
+    if (mib % 1024 == 0L) "${mib / 1024} GiB" else String.format(Locale.getDefault(), "%.1f GiB", gib)
+}
+
+private fun formatBytes(bytes: Long) = formatMiB(bytes / 1048576)
 
 /** Choose what to do, where, with which options, confirm, install. */
 class MainActivity : ComponentActivity() {
@@ -322,7 +332,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun targetChoices(p: ProbeResult, context: android.content.Context): List<Choice> {
-        fun size(bytes: Long) = Formatter.formatFileSize(context, bytes)
+        fun size(bytes: Long) = formatBytes(bytes)
         fun reason(usable: Boolean, reason: String) = if (usable) "" else reason
         return when (mode) {
             InstallRequest.MODE_DISK -> p.disks.map {
@@ -424,8 +434,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Partitions() {
         val p = probe ?: return
-        val context = LocalContext.current
-        fun size(mib: Long) = Formatter.formatFileSize(context, mib * 1048576)
+        fun size(mib: Long) = formatMiB(mib)
         val disk = p.disks.firstOrNull { it.name == target } ?: return
         val diskMiB = disk.sizeBytes / 1048576
         val parts = p.layout.toList()
@@ -940,7 +949,7 @@ class MainActivity : ComponentActivity() {
                         val what = listOfNotNull(
                             disk?.let { stringResource(diskType(it.type)) },
                             disk?.model?.takeIf { it.isNotEmpty() },
-                            Formatter.formatFileSize(LocalContext.current, disk?.sizeBytes ?: 0),
+                            formatBytes(disk?.sizeBytes ?: 0),
                         ).joinToString(" · ")
                         Notice(stringResource(R.string.confirm_disk, target, what))
                     }
