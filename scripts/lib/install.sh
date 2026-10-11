@@ -34,7 +34,8 @@ install_grub_efi() {
 }
 
 # install_disk <disk> <kernel command line> <upgrade: 1|0> <allow downgrade: 1|0>
-# SIZE_<partition> (MiB) overrides the default size of a partition
+# SIZE_<partition> (MiB) overrides the default size of a partition,
+# USERDATA_FS (ext4 or f2fs) is the filesystem of userdata
 install_disk() {
     local disk dev bios p src part mib sizes total done_mib from esp firmware need size min
     disk=$1
@@ -118,11 +119,9 @@ install_disk() {
 
     if [ "$3" != 1 ]; then
         si_progress 76 "Formatting the user data partitions"
-        # Android should format empty partitions on the first boot, but
-        # does not yet.
-        mke2fs -q -F -t ext4 -b 4096 -I 256 -L metadata "/dev/block/$PART_metadata" ||
+        si_mkfs_userdata "/dev/block/$PART_metadata" ext4 metadata ||
             si_die "Could not format the metadata partition"
-        mke2fs -q -F -t ext4 -b 4096 -I 256 -L userdata "/dev/block/$PART_userdata" ||
+        si_mkfs_userdata "/dev/block/$PART_userdata" "${USERDATA_FS:-ext4}" userdata ||
             si_die "Could not format the userdata partition"
         si_progress 80 "Formatting the EFI system partition"
         newfs_msdos -F 32 -L ESP "/dev/block/$PART_efi" >/dev/null ||
@@ -278,6 +277,7 @@ install_beside_entries() {
 
 # install_beside <partition> <userdata MiB> <kernel command line>
 # <boot entries: 1|0> <upgrade: 1|0> <allow downgrade: 1|0>
+# USERDATA_FS (ext4 or f2fs) is the filesystem of userdata.img on NTFS
 install_beside() {
     local part name fstype m dir mode need total p mib done_mib src from f cmdline
     part=$1
@@ -290,7 +290,7 @@ install_beside() {
     ext4) fsmod=ext2 ;;
     f2fs) fsmod=f2fs ;;
     ntfs) fsmod=ntfs ;;
-    *) si_die "Only ext4, F2FS and NTFS are supported" ;;
+    *) si_die "Only EXT4, F2FS and NTFS are supported" ;;
     esac
     if [ "$part" = "$SRC_DIR_DEV" ] && [ "$SRC_DIR_NAME" = "$name" ]; then
         si_die "This is the running system"
@@ -357,13 +357,12 @@ install_beside() {
     if [ "$5" != 1 ]; then
         si_progress 92 "Creating the user data"
         if [ "$mode" = imgs ]; then
-            # Android should format empty images on the first boot, but
-            # does not yet.
-            for f in userdata:$2 metadata:$LAYOUT_SIZE_metadata; do
-                truncate -s "${f#*:}M" "$dir/${f%%:*}.img" &&
-                    mke2fs -q -F -t ext4 -b 4096 -I 256 "$dir/${f%%:*}.img" ||
-                    si_die "Could not create ${f%%:*}.img"
-            done
+            truncate -s "${2}M" "$dir/userdata.img" &&
+                si_mkfs_userdata "$dir/userdata.img" "${USERDATA_FS:-ext4}" ||
+                si_die "Could not create userdata.img"
+            truncate -s "${LAYOUT_SIZE_metadata}M" "$dir/metadata.img" &&
+                si_mkfs_userdata "$dir/metadata.img" ext4 ||
+                si_die "Could not create metadata.img"
         else
             mkdir -m 0771 "$dir/userdata" "$dir/metadata" || si_die "Could not create the user data"
         fi

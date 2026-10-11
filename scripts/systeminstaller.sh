@@ -8,9 +8,9 @@
 # Usage:
 #   systeminstaller probe
 #   systeminstaller install-disk --target <disk> [--cmdline <text>]
-#       [--size <partition>=<MiB>]...
+#       [--size <partition>=<MiB>]... [--userdata-fs ext4|f2fs]
 #   systeminstaller install-beside --target <partition> [--userdata-size <MiB>]
-#       [--cmdline <text>] [--no-boot-entries]
+#       [--userdata-fs ext4|f2fs] [--cmdline <text>] [--no-boot-entries]
 #   systeminstaller upgrade --target <disk or partition> [--cmdline <text>]
 #       [--no-boot-entries] [--allow-downgrade]
 #
@@ -34,6 +34,13 @@ while [ $# -gt 0 ]; do
     --userdata-size) userdata_size=$2; shift ;;
     --no-boot-entries) boot_entries=0 ;;
     --allow-downgrade) allow_downgrade=1 ;;
+    --userdata-fs)
+        case $2 in
+        ext4 | f2fs) USERDATA_FS=$2 ;;
+        *) si_die "Unknown filesystem $2" ;;
+        esac
+        shift
+        ;;
     --size)
         case ${2%%=*} in
         efi | system | system_dlkm | vendor | vendor_dlkm | metadata) eval "SIZE_${2%%=*}=\${2#*=}" ;;

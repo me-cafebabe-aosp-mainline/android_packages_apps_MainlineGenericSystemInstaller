@@ -354,6 +354,16 @@ si_build_date() {
     si_umount "$SI_MNT"
 }
 
+# si_mkfs_userdata <device or image> <ext4|f2fs> [label]: formats user
+# data. Android should format empty user data on the first boot, but does
+# not yet.
+si_mkfs_userdata() {
+    case $2 in
+    f2fs) make_f2fs -g android -f ${3:+-l "$3"} "$1" >/dev/null ;;
+    *) mke2fs -q -F -t ext4 -b 4096 -I 256 ${3:+-L "$3"} "$1" ;;
+    esac
+}
+
 # si_save_log <directory>: copies the log of this installation, which
 # systeminstallerd writes to $SI_LOG, as installer.log
 si_save_log() {

@@ -196,7 +196,7 @@ probe() {
                 usable=1
             fi
             ;;
-        *) why="Only ext4, F2FS and NTFS are supported" ;;
+        *) why="Only EXT4, F2FS and NTFS are supported" ;;
         esac
         printf 'PART\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$disk" "$(si_size "$p")" \
             "$fstype" "$label" "$free" "$usable" "$os" "$why"
