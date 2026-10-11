@@ -544,16 +544,7 @@ class MainActivity : ComponentActivity() {
             },
             secondary = Action(stringResource(R.string.back)) { back() },
         ) {
-            item {
-                OutlinedTextField(
-                    value = cmdline,
-                    onValueChange = { cmdline = it },
-                    label = { Text(stringResource(R.string.cmdline)) },
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                    minLines = 3,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            bootOptions()
             if (hasUserdataFs()) {
                 item { SectionTitle(stringResource(R.string.userdata_fs)) }
                 item {
@@ -596,6 +587,96 @@ class MainActivity : ComponentActivity() {
                     trailingContent = { Switch(checked = checked, onCheckedChange = null) },
                 ) { Text(stringResource(title)) }
             }
+            item { SectionTitle(stringResource(R.string.cmdline)) }
+            item {
+                OutlinedTextField(
+                    value = cmdline,
+                    onValueChange = { cmdline = it },
+                    supportingText = { Text(stringResource(R.string.cmdline_summary)) },
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+
+    //
+    // Boot options: they edit the kernel command line, and show what is in it
+    //
+
+    private fun cmdlineTokens() = cmdline.trim().split(Regex("\\s+")).filter(String::isNotEmpty)
+
+    private fun hasTokens(tokens: List<String>) = cmdlineTokens().containsAll(tokens)
+
+    private fun editTokens(add: List<String>, remove: List<String>) {
+        val rest = cmdlineTokens().filter { it !in remove }
+        cmdline = (rest + add.filter { it !in rest }).joinToString(" ")
+    }
+
+    private data class BootToggle(val title: Int, val summary: Int, val tokens: List<String>)
+
+    private data class GraphicsChoice(val label: Int, val summary: Int, val tokens: List<String>)
+
+    private val graphicsChoices = listOf(
+        GraphicsChoice(R.string.graphics_auto, R.string.graphics_auto_summary, emptyList()),
+        GraphicsChoice(R.string.graphics_fb, R.string.graphics_fb_summary, listOf("androidboot.use_fb_display=true")),
+        GraphicsChoice(
+            R.string.graphics_swiftshader, R.string.graphics_swiftshader_summary,
+            listOf("androidboot.graphics=swiftshader"),
+        ),
+    )
+
+    private fun bootToggles() = buildList {
+        // The serial console of BOARD_KERNEL_CMDLINE_SERIAL_CONSOLE, x86 only
+        if (probe?.system?.arch == "x86_64") {
+            add(BootToggle(R.string.opt_serial, R.string.opt_serial_summary, listOf("8250.nr_uarts=1", "console=ttyS0")))
+        }
+        add(BootToggle(R.string.opt_adb, R.string.opt_adb_summary, listOf("androidboot.insecure_adb=true")))
+        add(BootToggle(R.string.opt_early_logs, R.string.opt_early_logs_summary, listOf("androidboot.save_early_logs=1")))
+    }
+
+    private fun LazyListScope.bootOptions() {
+        item { SectionTitle(stringResource(R.string.graphics)) }
+        item {
+            val all = graphicsChoices.flatMap { it.tokens }
+            val selected = graphicsChoices.lastOrNull { it.tokens.isNotEmpty() && hasTokens(it.tokens) }
+                ?: graphicsChoices.first()
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
+                    graphicsChoices.forEachIndexed { i, choice ->
+                        ToggleButton(
+                            checked = choice == selected,
+                            onCheckedChange = { editTokens(choice.tokens, all) },
+                            shapes = when (i) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                graphicsChoices.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            },
+                            modifier = Modifier.weight(1f),
+                        ) { Text(stringResource(choice.label), maxLines = 1) }
+                    }
+                }
+                Text(
+                    stringResource(selected.summary),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+            }
+        }
+        item { SectionTitle(stringResource(R.string.boot_options)) }
+        val toggles = bootToggles()
+        itemsIndexed(toggles) { index, toggle ->
+            val checked = hasTokens(toggle.tokens)
+            SegmentedListItem(
+                onClick = {
+                    if (checked) editTokens(emptyList(), toggle.tokens) else editTokens(toggle.tokens, emptyList())
+                },
+                shapes = ListItemDefaults.segmentedShapes(index, toggles.size),
+                supportingContent = { Text(stringResource(toggle.summary)) },
+                trailingContent = { Switch(checked = checked, onCheckedChange = null) },
+            ) { Text(stringResource(toggle.title)) }
         }
     }
 
