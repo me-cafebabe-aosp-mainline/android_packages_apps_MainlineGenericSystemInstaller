@@ -672,7 +672,7 @@ class MainActivity : ComponentActivity() {
     private fun isConsole(token: String, port: String) =
         token == "console=$port" || token.startsWith("console=$port,")
 
-    private fun setSerialPort(port: String) {
+    private fun changeSerialPort(port: String) {
         val old = serialPort
         serialPort = port
         if (!isSerialPort(port) || port == old) return
@@ -795,7 +795,7 @@ class MainActivity : ComponentActivity() {
             SectionTitle(stringResource(R.string.serial_port))
             OutlinedTextField(
                 value = serialPort,
-                onValueChange = { setSerialPort(it.trim()) },
+                onValueChange = { changeSerialPort(it.trim()) },
                 supportingText = { Text(stringResource(R.string.serial_port_summary)) },
                 isError = !isSerialPort(serialPort),
                 singleLine = true,
@@ -815,7 +815,7 @@ class MainActivity : ComponentActivity() {
                         val port = detected[i]
                         FilterChip(
                             selected = port == serialPort,
-                            onClick = { setSerialPort(port) },
+                            onClick = { changeSerialPort(port) },
                             label = { Text(port) },
                         )
                     }
