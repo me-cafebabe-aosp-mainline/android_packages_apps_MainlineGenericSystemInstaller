@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -63,6 +64,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
@@ -614,57 +616,93 @@ class MainActivity : ComponentActivity() {
         cmdline = (rest + add.filter { it !in rest }).joinToString(" ")
     }
 
+    /** On or off: the tokens are in the command line, or not */
     private data class BootToggle(val title: Int, val summary: Int, val tokens: List<String>)
 
-    private data class GraphicsChoice(val label: Int, val summary: Int, val tokens: List<String>)
+    private data class BootChoice(val label: String, val summary: String?, val tokens: List<String>)
 
-    private val graphicsChoices = listOf(
-        GraphicsChoice(R.string.graphics_auto, R.string.graphics_auto_summary, emptyList()),
-        GraphicsChoice(R.string.graphics_fb, R.string.graphics_fb_summary, listOf("androidboot.use_fb_display=true")),
-        GraphicsChoice(
-            R.string.graphics_swiftshader, R.string.graphics_swiftshader_summary,
-            listOf("androidboot.graphics=swiftshader"),
-        ),
+    /**
+     * One of the choices: setting one removes the tokens starting with the
+     * keys. The first choice, without tokens, is the default.
+     */
+    private data class BootSelection(
+        val title: String,
+        val keys: List<String>,
+        val choices: List<BootChoice>,
+        val chips: Boolean = false,
     )
 
+    private fun x86() = probe?.system?.arch == "x86_64"
+
     private fun bootToggles() = buildList {
+        add(BootToggle(R.string.opt_bootsplash, R.string.opt_bootsplash_summary, listOf("quiet", "androidboot.bootsplash=1")))
         // The serial console of BOARD_KERNEL_CMDLINE_SERIAL_CONSOLE, x86 only
-        if (probe?.system?.arch == "x86_64") {
+        if (x86()) {
             add(BootToggle(R.string.opt_serial, R.string.opt_serial_summary, listOf("8250.nr_uarts=1", "console=ttyS0")))
         }
         add(BootToggle(R.string.opt_adb, R.string.opt_adb_summary, listOf("androidboot.insecure_adb=true")))
         add(BootToggle(R.string.opt_early_logs, R.string.opt_early_logs_summary, listOf("androidboot.save_early_logs=1")))
+        add(BootToggle(R.string.opt_virt_wifi, R.string.opt_virt_wifi_summary, listOf("androidboot.wifi_impl=virt_wifi")))
     }
 
-    private fun LazyListScope.bootOptions() {
-        item { SectionTitle(stringResource(R.string.graphics)) }
-        item {
-            val all = graphicsChoices.flatMap { it.tokens }
-            val selected = graphicsChoices.lastOrNull { it.tokens.isNotEmpty() && hasTokens(it.tokens) }
-                ?: graphicsChoices.first()
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
-                    graphicsChoices.forEachIndexed { i, choice ->
-                        ToggleButton(
-                            checked = choice == selected,
-                            onCheckedChange = { editTokens(choice.tokens, all) },
-                            shapes = when (i) {
-                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                graphicsChoices.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) { Text(stringResource(choice.label), maxLines = 1) }
-                    }
-                }
-                Text(
-                    stringResource(selected.summary),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                )
-            }
+    @Composable
+    private fun bootSelections(): List<BootSelection> = buildList {
+        add(BootSelection(
+            stringResource(R.string.graphics),
+            listOf("androidboot.use_fb_display=", "androidboot.graphics="),
+            listOf(
+                BootChoice(stringResource(R.string.graphics_auto), stringResource(R.string.graphics_auto_summary), emptyList()),
+                BootChoice(stringResource(R.string.graphics_fb), stringResource(R.string.graphics_fb_summary),
+                    listOf("androidboot.use_fb_display=true")),
+                BootChoice(stringResource(R.string.graphics_swiftshader), stringResource(R.string.graphics_swiftshader_summary),
+                    listOf("androidboot.graphics=swiftshader")),
+            ),
+        ))
+        add(BootSelection(
+            stringResource(R.string.lcd_density),
+            listOf("androidboot.lcd_density="),
+            listOf(BootChoice(stringResource(R.string.lcd_density_auto), stringResource(R.string.lcd_density_summary), emptyList())) +
+                listOf(160, 240, 280, 320, 400, 480).map {
+                    BootChoice("$it", stringResource(R.string.lcd_density_summary), listOf("androidboot.lcd_density=$it"))
+                },
+            chips = true,
+        ))
+        add(BootSelection(
+            stringResource(R.string.fbcon_rotation),
+            listOf("fbcon=rotate:"),
+            listOf("0°", "90°", "180°", "270°").mapIndexed { i, label ->
+                BootChoice(label, stringResource(R.string.fbcon_rotation_summary),
+                    if (i == 0) emptyList() else listOf("fbcon=rotate:$i"))
+            },
+        ))
+        if (x86()) {
+            val serial = listOf("androidboot.seriallogging=ttyS0")
+            add(BootSelection(
+                stringResource(R.string.logcat_serial),
+                listOf("androidboot.seriallogging=", "androidboot.seriallogging.logcat_buffer="),
+                listOf(
+                    BootChoice(stringResource(R.string.logcat_off), stringResource(R.string.logcat_summary), emptyList()),
+                    BootChoice(stringResource(R.string.logcat_crash), stringResource(R.string.logcat_summary),
+                        serial + "androidboot.seriallogging.logcat_buffer=crash"),
+                    BootChoice(stringResource(R.string.logcat_default), stringResource(R.string.logcat_summary),
+                        serial + "androidboot.seriallogging.logcat_buffer=default"),
+                    BootChoice(stringResource(R.string.logcat_all), stringResource(R.string.logcat_summary),
+                        serial + "androidboot.seriallogging.logcat_buffer=all"),
+                ),
+            ))
         }
+    }
+
+    private fun select(selection: BootSelection, choice: BootChoice) {
+        val rest = cmdlineTokens().filter { t -> selection.keys.none { t.startsWith(it) } }
+        cmdline = (rest + choice.tokens).joinToString(" ")
+    }
+
+    private fun selected(selection: BootSelection) =
+        selection.choices.lastOrNull { it.tokens.isNotEmpty() && hasTokens(it.tokens) } ?: selection.choices.first()
+
+    private fun LazyListScope.bootOptions() {
+        item { BootSelections() }
         item { SectionTitle(stringResource(R.string.boot_options)) }
         val toggles = bootToggles()
         itemsIndexed(toggles) { index, toggle ->
@@ -677,6 +715,51 @@ class MainActivity : ComponentActivity() {
                 supportingContent = { Text(stringResource(toggle.summary)) },
                 trailingContent = { Switch(checked = checked, onCheckedChange = null) },
             ) { Text(stringResource(toggle.title)) }
+        }
+    }
+
+    @Composable
+    private fun BootSelections() {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (selection in bootSelections()) {
+                val current = selected(selection)
+                SectionTitle(selection.title)
+                if (selection.chips) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(selection.choices.size) { i ->
+                            val choice = selection.choices[i]
+                            FilterChip(
+                                selected = choice == current,
+                                onClick = { select(selection, choice) },
+                                label = { Text(choice.label) },
+                            )
+                        }
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
+                        selection.choices.forEachIndexed { i, choice ->
+                            ToggleButton(
+                                checked = choice == current,
+                                onCheckedChange = { select(selection, choice) },
+                                shapes = when (i) {
+                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                    selection.choices.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) { Text(choice.label, maxLines = 1) }
+                        }
+                    }
+                }
+                current.summary?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
+            }
         }
     }
 
