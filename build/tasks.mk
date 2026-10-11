@@ -11,6 +11,8 @@ SYSTEMINSTALLER_PATH := packages/apps/MainlineGenericSystemInstaller
 # Flashable disk image: the layout of a whole disk installation.
 
 MAINLINE_GENERIC_DISKIMAGE_USERDATA_SIZE ?= 4096
+# ext4 or f2fs
+MAINLINE_GENERIC_DISKIMAGE_USERDATA_FS ?= ext4
 
 INSTALLED_DISKIMAGE_TARGET := $(PRODUCT_OUT)/$(BOOTMGR_ARTIFACT_FILENAME_PREFIX)-disk.img
 
@@ -31,6 +33,7 @@ INSTALLED_DISKIMAGE_TARGET_DEPS := \
     $(PRODUCT_OUT)/kernel \
     $(INSTALLED_RAMDISK_ALL_COMBINED_TARGET) \
     $(HOST_OUT_EXECUTABLES)/mke2fs \
+    $(if $(filter f2fs,$(MAINLINE_GENERIC_DISKIMAGE_USERDATA_FS)),$(HOST_OUT_EXECUTABLES)/make_f2fs) \
     $(HOST_OUT_EXECUTABLES)/sgdisk \
     $(wildcard $(SYSTEMINSTALLER_PATH)/scripts/make-diskimage.sh $(SYSTEMINSTALLER_PATH)/scripts/lib/*.sh) \
     $(TARGET_LINUX_FIRMWARE_IMAGE)
@@ -50,7 +53,9 @@ define make-diskimage-target
 		$(foreach i,$(DISKIMAGE_IMAGES),--image $(i)=$(PRODUCT_OUT)/$(i).img) \
 		--title "$(BOOTMGR_ANDROID_DISTRIBUTION_NAME)" \
 		--cmdline "$(strip $(BOARD_KERNEL_CMDLINE))" \
-		--userdata-size $(MAINLINE_GENERIC_DISKIMAGE_USERDATA_SIZE)
+		--userdata-size $(MAINLINE_GENERIC_DISKIMAGE_USERDATA_SIZE) \
+		--userdata-fs $(MAINLINE_GENERIC_DISKIMAGE_USERDATA_FS) \
+		--make-f2fs $(HOST_OUT_EXECUTABLES)/make_f2fs
 endef
 
 $(INSTALLED_DISKIMAGE_TARGET): $(INSTALLED_DISKIMAGE_TARGET_DEPS)

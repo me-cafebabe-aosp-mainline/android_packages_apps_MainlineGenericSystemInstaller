@@ -15,7 +15,7 @@ running system can be the live ISO, or an installed system.
 | Mode | Target | Result |
 |------|--------|--------|
 | Whole disk | A disk, erased | GPT with the partitions `bios` (BIOS boot), `efi` (EFI system), `system`, `system_dlkm`, `vendor`, `vendor_dlkm`, `metadata` and `userdata` (`mount_system=std_parts`). Sizes can be changed in the app (`--size`); by default twice the content, at least 1 GiB, 4 GiB, 128 MiB, 512 MiB, 512 MiB and 64 MiB, `userdata` takes the rest, as EXT4 or F2FS (`--userdata-fs`). Kernel, ramdisk and firmware image in `/android` of the EFI system partition. Boots with UEFI and BIOS. |
-| Beside another operating system | An ext4, F2FS or NTFS partition | Images in `/android-system-<device>` (`mount_system=imgs`). User data in directories, on NTFS in images (`userdata.img` EXT4 or F2FS). Boot entries, see below. |
+| Beside another operating system | An EXT4, F2FS or NTFS partition | Images in `/android-system-<device>` (`mount_system=imgs`). User data in directories, on NTFS in images (`userdata.img` EXT4 or F2FS). Boot entries, see below. |
 | Upgrade | An installation of either kind | Replaces the system, kernel, ramdisk and firmware, keeps the user data. Refuses an older build unless allowed. |
 
 What gets installed is what the running system was booted from: the
@@ -79,8 +79,9 @@ systeminstaller upgrade --target sdb
 
 `m diskimage` builds `<artifact prefix>-disk.img`, the layout of a whole
 disk installation. `MAINLINE_GENERIC_DISKIMAGE_USERDATA_SIZE` sets the
-size of `userdata` in MiB (default 4096). It is not expanded when the
-image is written to a bigger disk.
+size of `userdata` in MiB (default 4096), and
+`MAINLINE_GENERIC_DISKIMAGE_USERDATA_FS` its filesystem (`ext4`, default,
+or `f2fs`). It is not expanded when the image is written to a bigger disk.
 
 ## Notes
 

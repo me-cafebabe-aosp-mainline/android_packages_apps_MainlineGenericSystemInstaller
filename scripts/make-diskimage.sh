@@ -20,6 +20,8 @@
 #   --title <text>               GRUB menu title
 #   --cmdline <text>             kernel command line
 #   --userdata-size <MiB>
+#   --userdata-fs <ext4|f2fs>    filesystem of userdata (default ext4)
+#   --make-f2fs <path>           host make_f2fs, for --userdata-fs f2fs
 #   --serial <8 hex digits>      volume serial of the EFI system partition
 #
 
@@ -33,6 +35,8 @@ LIB=$(dirname "$0")/lib
 firmware=
 loader=
 serial=4e4d4c47
+userdata_fs=ext4
+make_f2fs=
 while [ $# -gt 0 ]; do
     case $1 in
     --out) out=$2 ;;
@@ -48,6 +52,8 @@ while [ $# -gt 0 ]; do
     --title) title=$2 ;;
     --cmdline) cmdline=$2 ;;
     --userdata-size) userdata_size=$2 ;;
+    --userdata-fs) userdata_fs=$2 ;;
+    --make-f2fs) make_f2fs=$2 ;;
     --serial) serial=$2 ;;
     *) echo "make-diskimage.sh: unknown option $1" >&2; exit 1 ;;
     esac
@@ -100,10 +106,38 @@ for p in $LAYOUT_SYSTEM_PARTS; do
     dd if="$file" of="$out" bs=1M seek=$(($(start $p) / 2048)) conv=notrunc 2>/dev/null
 done
 
-for p in metadata userdata; do
-    if [ $p = metadata ]; then size=$LAYOUT_SIZE_metadata; else size=$userdata_size; fi
-    "$mke2fs" -q -F -t ext4 -b 4096 -I 256 -L $p -E offset=$(($(start $p) * 512)) "$out" "${size}M"
-done
+"$mke2fs" -q -F -t ext4 -b 4096 -I 256 -L metadata -E offset=$(($(start metadata) * 512)) \
+    "$out" "${LAYOUT_SIZE_metadata}M"
+case $userdata_fs in
+ext4)
+    "$mke2fs" -q -F -t ext4 -b 4096 -I 256 -L userdata -E offset=$(($(start userdata) * 512)) \
+        "$out" "${userdata_size}M"
+    ;;
+f2fs)
+    # make_f2fs can not write at an offset: format a sparse image of its
+    # own, and copy what is not zero into the partition
+    userdata=$(mktemp)
+    truncate -s "${userdata_size}M" "$userdata"
+    "$make_f2fs" -g android -f -l userdata "$userdata" >/dev/null
+    python3 - "$userdata" "$out" $(($(start userdata) * 512)) <<'EOF2'
+import sys
+block = 1 << 16
+with open(sys.argv[1], "rb") as src, open(sys.argv[2], "r+b") as dst:
+    offset = int(sys.argv[3])
+    position = 0
+    while data := src.read(block):
+        if data.count(0) != len(data):
+            dst.seek(offset + position)
+            dst.write(data)
+        position += len(data)
+EOF2
+    rm -f "$userdata"
+    ;;
+*)
+    echo "make-diskimage.sh: unknown filesystem $userdata_fs" >&2
+    exit 1
+    ;;
+esac
 
 esp_size=${sizes%% *}
 esp="$out@@$(($(start efi) * 512))"
