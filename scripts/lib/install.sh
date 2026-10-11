@@ -172,41 +172,108 @@ install_find_esp() {
     return 1
 }
 
-# install_update_grub <root of a Linux system>: regenerates its grub.cfg
+# install_linux_dev <directory>: fills it like /dev of a Linux system:
+# block devices as /dev/<name> and /dev/disk/by-*, not /dev/block/<name>
+# like Android, which grub-mkconfig would write to the menu entries
+install_linux_dev() {
+    local b n v
+    mkdir -p "$1/disk/by-uuid" "$1/disk/by-partuuid" "$1/pts" "$1/shm"
+    for n in null:1:3 zero:1:5 full:1:7 random:1:8 urandom:1:9 tty:5:0; do
+        mknod -m 0666 "$1/${n%%:*}" c $(echo "${n#*:}" | tr : ' ')
+    done
+    ln -s /proc/self/fd "$1/fd"
+    ln -s /proc/self/fd/0 "$1/stdin"
+    ln -s /proc/self/fd/1 "$1/stdout"
+    ln -s /proc/self/fd/2 "$1/stderr"
+    for b in /sys/class/block/*; do
+        n=${b##*/}
+        mknod -m 0660 "$1/$n" b $(tr : ' ' <"$b/dev") || continue
+        v=$(si_blkid "$n" UUID)
+        [ -n "$v" ] && ln -sf "../../$n" "$1/disk/by-uuid/$v"
+        v=$(si_blkid "$n" PARTUUID)
+        [ -n "$v" ] && ln -sf "../../$n" "$1/disk/by-partuuid/$v"
+    done
+}
+
+# install_update_grub <partition> <root of a Linux system on it>:
+# regenerates its grub.cfg
+#
+# grub-mkconfig finds the root device in /proc/self/mountinfo, where it is
+# the device the partition was mounted from: it is mounted again from
+# /dev/<name> for that, and the chroot gets a /dev of a Linux system.
 install_update_grub() {
-    local r bound n rc t b
-    r=$1
+    local r fstype dev node created root bound n rc t b
+    r=$2
     if [ -x "$r/usr/sbin/update-grub" ]; then
-        set -- /usr/sbin/update-grub
+        set -- "$1" /usr/sbin/update-grub
     elif [ -x "$r/usr/sbin/grub2-mkconfig" ] && [ -f "$r/boot/grub2/grub.cfg" ]; then
-        set -- /usr/sbin/grub2-mkconfig -o /boot/grub2/grub.cfg
+        set -- "$1" /usr/sbin/grub2-mkconfig -o /boot/grub2/grub.cfg
     elif [ -x "$r/usr/sbin/grub-mkconfig" ] && [ -f "$r/boot/grub/grub.cfg" ]; then
-        set -- /usr/sbin/grub-mkconfig -o /boot/grub/grub.cfg
+        set -- "$1" /usr/sbin/grub-mkconfig -o /boot/grub/grub.cfg
     else
         return 1
     fi
+    fstype=$(awk -v mp="$r" '
+        { for (i = 7; $i != "-"; i++);
+          if ($5 == mp) t = $(i + 1) }
+        END { print t }' /proc/self/mountinfo)
+    [ -n "$fstype" ] || return 1
+
+    dev=$(mktemp -d "$SI_TMP/dev.XXXXXX") || return 1
+    if ! mount -t tmpfs -o mode=0755 tmpfs "$dev"; then
+        rmdir "$dev"
+        return 1
+    fi
+    SI_MOUNTS="$dev $SI_MOUNTS"
+    install_linux_dev "$dev"
+
+    # Android has no /dev/<name>: created only to be the mount source
+    node=/dev/$1
+    created=0
+    if [ ! -e "$node" ]; then
+        mknod -m 0600 "$node" b $(tr : ' ' <"/sys/class/block/$1/dev") || return 1
+        created=1
+    fi
+    root=$(mktemp -d "$SI_TMP/root.XXXXXX") || return 1
+    rc=1
+    if mount -t "$fstype" "$node" "$root"; then
+        SI_MOUNTS="$root $SI_MOUNTS"
+        rc=0
+    fi
+    [ "$created" = 1 ] && rm -f "$node"
+    if [ "$rc" != 0 ]; then
+        rmdir "$root"
+        si_umount "$dev"
+        return 1
+    fi
+
     bound=
     n=0
     rc=1
-    for t in dev proc sys; do
-        mount --bind "/$t" "$r/$t" || break
-        bound="$r/$t $bound"
+    for t in dev:"$dev" proc:/proc sys:/sys; do
+        mount --bind "${t#*:}" "$root/${t%%:*}" || break
+        bound="$root/${t%%:*} $bound"
         n=$((n + 1))
     done
     if [ "$n" = 3 ]; then
-        PATH=/usr/sbin:/usr/bin:/sbin:/bin chroot "$r" "$@" && rc=0
+        shift
+        PATH=/usr/sbin:/usr/bin:/sbin:/bin chroot "$root" "$@" && rc=0
     fi
     for b in $bound; do
         umount "$b" || umount -l "$b"
     done
+    si_umount "$root"
+    si_umount "$dev"
     return $rc
 }
 
-# install_linux_grub <root of a Linux system> <title> <menu entries>: adds
-# the entries to its GRUB menu
+# install_linux_grub <partition> <root of a Linux system on it> <title>
+# <menu entries>: adds the entries to its GRUB menu
 install_linux_grub() {
-    local r name script cfgdir d begin end
-    r=$1
+    local part r name script cfgdir d begin end
+    part=$1
+    r=$2
+    shift
     name=$(si_install_name)
     script=$r/etc/grub.d/35_$name
     {
@@ -216,7 +283,7 @@ install_linux_grub() {
         echo EOF
     } >"$script"
     chmod 0755 "$script"
-    if install_update_grub "$r"; then
+    if install_update_grub "$part" "$r"; then
         echo "Added to the GRUB menu of the Linux system on this partition"
         return 0
     fi
@@ -268,7 +335,7 @@ install_beside_entries() {
         added=1
     fi
 
-    if [ -d "$2/etc/grub.d" ] && install_linux_grub "$2" "$3" "$entries"; then
+    if [ -d "$2/etc/grub.d" ] && install_linux_grub "$1" "$2" "$3" "$entries"; then
         added=1
     fi
 

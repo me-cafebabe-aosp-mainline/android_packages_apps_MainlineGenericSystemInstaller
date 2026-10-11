@@ -89,6 +89,10 @@ or `f2fs`). It is not expanded when the image is written to a bigger disk.
   first boot, but does not yet: the installer formats them as ext4.
 - mksh has 32-bit arithmetic: sizes in bytes go through `awk`, the rest
   of the scripts counts in MiB or sectors.
+- Android names block devices `/dev/block/<name>`, Linux `/dev/<name>`.
+  For `update-grub` of a Linux system, its partition is mounted again
+  from `/dev/<name>` and the chroot gets a `/dev` of a Linux system
+  (`install_update_grub`), or its menu entries would get Android's paths.
 - The BIOS boot code is installed by `lib/bootcode.sh`, which does what
   `grub-bios-setup` does: GRUB's `core.img` expects the EFI system
   partition as the second partition.
