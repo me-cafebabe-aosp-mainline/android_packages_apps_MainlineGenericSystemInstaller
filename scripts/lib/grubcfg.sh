@@ -37,11 +37,15 @@ grubcfg_entry() {
 
 # grubcfg_entries <title> <filesystem UUID> <GRUB filesystem module>
 # <Android directory> <kernel command line> <userdata mount method>:
-# the entry, and one with user data in RAM
+# the entry, and one with user data in RAM. generic_init looks for the
+# Android directory on that filesystem only (androidboot.android_dir_dev),
+# not on another installation or media.
 grubcfg_entries() {
-    grubcfg_entry "$1" "$2" "$3" "$4" "$5 androidboot.mount_userdata=$6"
+    local cmdline
+    cmdline="$5 androidboot.android_dir_dev=UUID=$2"
+    grubcfg_entry "$1" "$2" "$3" "$4" "$cmdline androidboot.mount_userdata=$6"
     if [ "$6" != tmpfs ]; then
-        grubcfg_entry "$1 (user data in RAM)" "$2" "$3" "$4" "$5 androidboot.mount_userdata=tmpfs"
+        grubcfg_entry "$1 (user data in RAM)" "$2" "$3" "$4" "$cmdline androidboot.mount_userdata=tmpfs"
     fi
 }
 

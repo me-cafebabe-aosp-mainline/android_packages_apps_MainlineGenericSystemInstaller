@@ -54,6 +54,11 @@ written by another operating system: images and overlays of a USB drive
 can be replaced there. Upgrades keep the layout and the parameters of
 `grub.cfg`.
 
+Every boot entry names the filesystem of the Android directory by its
+UUID (`androidboot.android_dir_dev=UUID=`, as GRUB finds it): another
+installation or media with an Android directory of the same name is not
+used instead.
+
 Boot entries of an installation beside another operating system:
 
 - UEFI: GRUB in `\EFI\android-system-<device>` of the EFI system partition
