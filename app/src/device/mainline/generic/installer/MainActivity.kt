@@ -9,6 +9,7 @@ package device.mainline.generic.installer
 
 import android.os.Bundle
 import android.os.PowerManager
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -168,6 +169,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Installations take a while, and the screen is the only feedback
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent { InstallerTheme { App() } }
         executor.execute { load() }
     }
