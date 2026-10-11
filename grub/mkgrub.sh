@@ -53,7 +53,7 @@ i386-pc)
     run grub-mkimage -d "$root/lib/grub/$platform" -O "$platform" -o "$out" \
         -p "(,gpt2)/EFI/BOOT" -c "$config" \
         biosdisk part_gpt part_msdos fat ext2 f2fs ntfs search search_fs_uuid configfile normal linux \
-        echo test all_video gfxterm font
+        echo test all_video gfxterm font reboot halt ls cat
     ;;
 *)
     echo "mkgrub.sh: unsupported platform $platform" >&2
