@@ -20,7 +20,7 @@
     <string name="mode_disk">Install to a whole disk</string>
     <string name="mode_disk_summary">Erases the disk</string>
     <string name="mode_beside">Install beside another operating system</string>
-    <string name="mode_beside_summary">Adds files to an ext4, F2FS or NTFS partition</string>
+    <string name="mode_beside_summary">Adds files to an EXT4, F2FS or NTFS partition</string>
     <string name="mode_upgrade">Upgrade an installation</string>
     <string name="mode_upgrade_summary">Keeps the user data</string>
 
@@ -50,6 +50,7 @@
     <string name="reset_sizes">Reset to the defaults</string>
     <string name="options_title">Options</string>
     <string name="cmdline">Kernel command line</string>
+    <string name="userdata_fs">Filesystem of the user data</string>
     <string name="userdata_size">Size of the user data, in GiB</string>
     <string name="boot_entries">Add boot entries</string>
     <string name="boot_entries_summary">GRUB on the EFI system partition, and in the GRUB menu of a Linux system on the partition</string>

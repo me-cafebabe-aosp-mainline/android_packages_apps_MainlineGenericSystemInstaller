@@ -58,6 +58,7 @@ import androidx.compose.material.icons.outlined.Usb
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -81,6 +82,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -140,6 +142,7 @@ class MainActivity : ComponentActivity() {
     private var userdataGiB by mutableStateOf("16")
     private var bootEntries by mutableStateOf(true)
     private var allowDowngrade by mutableStateOf(false)
+    private var userdataFs by mutableStateOf("ext4")
     /** Partition sizes in MiB, as typed, for the disk in sizesTarget */
     private val sizes = mutableStateMapOf<String, String>()
     private var sizesTarget = ""
@@ -190,6 +193,7 @@ class MainActivity : ComponentActivity() {
             it.cmdline = if (cmdline.trim() == p.system.defaultCmdline) "" else cmdline.trim()
             it.bootEntries = bootEntries
             it.allowDowngrade = allowDowngrade
+            it.userdataFs = userdataFs
             it.sizes = if (mode == InstallRequest.MODE_DISK) {
                 p.layout.mapNotNull { l ->
                     sizes[l.name]?.toIntOrNull()?.takeIf { v -> v != l.defaultMiB }?.let { v ->
@@ -343,7 +347,7 @@ class MainActivity : ComponentActivity() {
                         it.os.isNotEmpty() -> Icons.Outlined.Computer
                         else -> Icons.Outlined.Storage
                     },
-                    "${it.name} · ${it.fsType.ifEmpty { "?" }} · ${size(it.sizeBytes)}",
+                    "${it.name} · ${it.fsType.uppercase().ifEmpty { "?" }} · ${size(it.sizeBytes)}",
                     listOf(
                         it.os.ifEmpty { it.label },
                         context.getString(R.string.free, free),
@@ -514,6 +518,9 @@ class MainActivity : ComponentActivity() {
     private fun isNtfsTarget() = mode == InstallRequest.MODE_BESIDE &&
         probe?.partitions?.any { it.name == target && it.fsType == "ntfs" } == true
 
+    /** Whether userdata gets a filesystem of its own: a partition, or an image on NTFS */
+    private fun hasUserdataFs() = mode == InstallRequest.MODE_DISK || isNtfsTarget()
+
     private fun hasBootEntries() = when (mode) {
         InstallRequest.MODE_BESIDE -> true
         InstallRequest.MODE_UPGRADE ->
@@ -546,6 +553,23 @@ class MainActivity : ComponentActivity() {
                     minLines = 3,
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+            if (hasUserdataFs()) {
+                item { SectionTitle(stringResource(R.string.userdata_fs)) }
+                item {
+                    val choices = listOf("ext4", "f2fs")
+                    Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
+                        choices.forEachIndexed { i, fs ->
+                            ToggleButton(
+                                checked = userdataFs == fs,
+                                onCheckedChange = { userdataFs = fs },
+                                shapes = if (i == 0) ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                         else ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                                modifier = Modifier.weight(1f),
+                            ) { Text(fs.uppercase()) }
+                        }
+                    }
+                }
             }
             if (isNtfsTarget()) {
                 item {
