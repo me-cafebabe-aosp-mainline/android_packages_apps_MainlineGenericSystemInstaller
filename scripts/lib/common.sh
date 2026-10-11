@@ -23,6 +23,8 @@ SI_ETC=${SI_ETC:-/system_ext/etc/systeminstaller}
 SI_GRUB=$SI_ETC/grub
 SI_TMP=/mnt/systeminstaller
 SI_MOUNTS=
+# Loop devices of mounted images, as <mount point>:<device>
+SI_LOOPS=
 
 si_progress() {
     printf 'PROGRESS\t%s\t%s\n' "$1" "$2"
@@ -290,10 +292,43 @@ si_fs_size() {
 # Mounts, all under $SI_TMP and undone on exit
 #
 
+# si_loop_attach <file> <ro|rw>: a loop device for it
+#
+# Not toybox mount -o loop: it attaches a device for every filesystem type
+# tried, and leaves them attached after umount, which keeps the filesystem
+# with the image busy: it could not be mounted read-write anymore. toybox
+# losetup complains about file names longer than 64 bytes, after
+# attaching the device: checked in sysfs instead.
+si_loop_attach() {
+    local loop ro
+    loop=$(losetup -f) || return 1
+    ro=
+    [ "$2" = ro ] && ro=-r
+    losetup $ro "$loop" "$1" 2>/dev/null
+    [ -n "$(cat "/sys/block/${loop##*/}/loop/backing_file" 2>/dev/null)" ] || return 1
+    echo "$loop"
+}
+
+# si_loop_free <mount point>: detaches the loop device of an image mounted
+# there
+si_loop_free() {
+    local l new
+    new=
+    for l in $SI_LOOPS; do
+        if [ "${l%%:*}" = "$1" ]; then
+            losetup -d "${l#*:}" 2>/dev/null
+        else
+            new="$new $l"
+        fi
+    done
+    SI_LOOPS=$new
+}
+
 si_cleanup() {
     local m
     for m in $SI_MOUNTS; do
         umount "$m" 2>/dev/null || umount -l "$m" 2>/dev/null
+        si_loop_free "$m"
         rmdir "$m" 2>/dev/null
     done
     SI_MOUNTS=
@@ -304,22 +339,33 @@ trap 'exit 1' HUP INT TERM
 # si_mount <device name, device or file> [rw]: mounts it, sets SI_MNT to
 # the mount point and SI_FSTYPE
 si_mount() {
-    local m opts dev t
+    local m opts dev loop t
     mkdir -p "$SI_TMP"
     m=$(mktemp -d "$SI_TMP/m.XXXXXX") || return 1
     opts=ro
     [ "$2" = rw ] && opts=rw
-    [ -f "$1" ] && opts="$opts,loop"
     dev=$1
-    [ -f "$dev" ] || [ -b "$dev" ] || dev=/dev/block/$1
+    loop=
+    if [ -f "$dev" ]; then
+        loop=$(si_loop_attach "$dev" "$opts")
+        if [ -z "$loop" ]; then
+            rmdir "$m"
+            return 1
+        fi
+        dev=$loop
+    elif [ ! -b "$dev" ]; then
+        dev=/dev/block/$1
+    fi
     for t in ext4 f2fs vfat ntfs ntfs3 erofs iso9660 udf; do
         if mount -t "$t" -o "$opts" "$dev" "$m" 2>/dev/null; then
             SI_MNT=$m
             SI_FSTYPE=$t
             SI_MOUNTS="$m $SI_MOUNTS"
+            [ -n "$loop" ] && SI_LOOPS="$SI_LOOPS $m:$loop"
             return 0
         fi
     done
+    [ -n "$loop" ] && losetup -d "$loop"
     rmdir "$m"
     return 1
 }
@@ -328,6 +374,7 @@ si_mount() {
 si_umount() {
     local new m
     umount "$1" 2>/dev/null || umount -l "$1"
+    si_loop_free "$1"
     rmdir "$1" 2>/dev/null
     new=
     for m in $SI_MOUNTS; do
