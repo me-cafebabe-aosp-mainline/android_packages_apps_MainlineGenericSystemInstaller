@@ -18,4 +18,6 @@ parcelable ProbeResult {
     Installation[] installations;
     /** Of a whole disk installation, empty if nothing can be installed */
     PartitionLayout[] layout;
+    /** Serial ports and virtio consoles (hvc) found */
+    @utf8InCpp String[] serialPorts;
 }

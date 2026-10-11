@@ -160,6 +160,8 @@ class SystemInstaller : public installer::BnSystemInstaller {
                                                          .buildDateUtc = ToInt64(f[3]),
                                                          .upgradable = f[4] == "1",
                                                          .reason = f[5]});
+                    } else if (f[0] == "SERIAL" && f.size() >= 2) {
+                        result->serialPorts.push_back(f[1]);
                     } else if (f[0] == "LAYOUT" && f.size() >= 4) {
                         result->layout.push_back({.name = f[1],
                                                   .defaultMiB = static_cast<int32_t>(ToInt64(f[2])),

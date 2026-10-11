@@ -6,6 +6,7 @@
 #
 #   LAYOUT  <partition> <default MiB> <minimum MiB>   of a whole disk
 #           installation, userdata takes the rest
+#   SERIAL  <name>   a serial port, or a virtio console (hvc)
 #   SYSTEM  <uefi|bios> <EFI bits: 64|32|> <Secure Boot: 1|0|> <arch>
 #           <device> <build date> <title> <default kernel command line>
 #           <source found: 1|0> <why not>
@@ -97,6 +98,25 @@ probe_install_date() {
     si_build_date "/dev/block/$system"
 }
 
+probe_serial_ports() {
+    local t n
+    for t in /sys/class/tty/*; do
+        n=${t##*/}
+        case $n in
+        ttyS[0-9]*)
+            # 8250 also registers ports that are not there, of type 0
+            [ "$(cat "$t/type" 2>/dev/null)" != 0 ] || continue
+            ;;
+        # Only there when a backend (virtio console...) created them
+        hvc[0-9]*) ;;
+        tty | tty[0-9]* | ttynull) continue ;;
+        tty*) [ -e "$t/device" ] || continue ;;
+        *) continue ;;
+        esac
+        printf 'SERIAL\t%s\n' "$n"
+    done
+}
+
 probe() {
     local name device found src_disks busy d bytes usable why installed upgradable p disk fstype label free os m
     name=$(si_install_name)
@@ -108,6 +128,7 @@ probe() {
         found=0
     fi
     probe_system $found
+    probe_serial_ports
     if [ "$found" = 1 ]; then
         for p in efi $LAYOUT_SYSTEM_PARTS; do
             eval "mib=\$MIB_$p"
