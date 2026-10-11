@@ -46,11 +46,13 @@ grubcfg_entries() {
 }
 
 # grubcfg_disk <title> <EFI system partition UUID> <kernel command line>
-# <firmware image: 0|1>: grub.cfg of a whole disk installation
+# <firmware image: 0|1> [androidboot.mount_overlay value]: grub.cfg of a
+# whole disk installation
 grubcfg_disk() {
     local cmdline
     cmdline="$3 androidboot.android_dir=android androidboot.mount_system=std_parts"
     [ "$4" = 1 ] && cmdline="$cmdline androidboot.mount_firmware=img"
+    [ -n "$5" ] && cmdline="$cmdline androidboot.mount_overlay=$5"
     grubcfg_header
     grubcfg_entries "$1" "$2" fat android "$cmdline" std_parts
 }

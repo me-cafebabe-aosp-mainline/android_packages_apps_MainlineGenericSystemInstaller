@@ -158,6 +158,8 @@ class MainActivity : ComponentActivity() {
     private var allowDowngrade by mutableStateOf(false)
     private var userdataFs by mutableStateOf("ext4")
     private var userdataImages by mutableStateOf(false)
+    /** androidboot.mount_overlay of a whole disk installation, "" for none */
+    private var overlay by mutableStateOf("")
     /** Partition sizes in MiB, as typed, for the disk in sizesTarget */
     private val sizes = mutableStateMapOf<String, String>()
     private var sizesTarget = ""
@@ -214,8 +216,10 @@ class MainActivity : ComponentActivity() {
             it.allowDowngrade = allowDowngrade
             it.userdataFs = userdataFs
             it.userdataImages = mode == InstallRequest.MODE_BESIDE && userdataImages
+            it.overlay = if (mode == InstallRequest.MODE_DISK) overlay else ""
             it.sizes = if (mode == InstallRequest.MODE_DISK) {
-                p.layout.mapNotNull { l ->
+                // Sizes of overlay partitions (the optional ones) only with them
+                p.layout.filter { l -> l.defaultMiB != 0 || overlay == "std_parts" }.mapNotNull { l ->
                     sizes[l.name]?.toIntOrNull()?.takeIf { v -> v != l.defaultMiB }?.let { v ->
                         PartitionSize().apply {
                             name = l.name
@@ -446,8 +450,15 @@ class MainActivity : ComponentActivity() {
         val disk = p.disks.firstOrNull { it.name == target } ?: return
         val diskMiB = disk.sizeBytes / 1048576
         val parts = p.layout.toList()
-        val values = parts.map { (sizes[it.name] ?: "${it.defaultMiB}").toLongOrNull() ?: 0L }
-        val invalid = parts.indices.any { values[it] < parts[it].minimumMiB }
+        // A default of 0: optional (overlay partitions), 0 does not create it
+        fun optional(i: Int) = parts[i].defaultMiB == 0
+        val values = parts.indices.map { i ->
+            if (optional(i) && overlay != "std_parts") 0L
+            else (sizes[parts[i].name] ?: "${parts[i].defaultMiB}").toLongOrNull() ?: 0L
+        }
+        fun invalid(i: Int) = values[i] < parts[i].minimumMiB && !(optional(i) && values[i] == 0L)
+        val noOverlayPartition = overlay == "std_parts" && parts.indices.none { optional(it) && values[it] > 0 }
+        val invalid = parts.indices.any { invalid(it) } || noOverlayPartition
         val userdataMiB = diskMiB - OVERHEAD_MIB - values.sum()
         val colors = MaterialTheme.colorScheme.let {
             listOf(it.primary, it.secondary, it.tertiary, it.error, it.primaryContainer, it.tertiaryContainer)
@@ -486,6 +497,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
             itemsIndexed(parts) { i, part ->
+                if (optional(i) && (i == 0 || !optional(i - 1))) {
+                    OverlayChoice(noOverlayPartition)
+                }
+                if (optional(i) && overlay != "std_parts") return@itemsIndexed
                 OutlinedTextField(
                     value = sizes[part.name] ?: "${part.defaultMiB}",
                     onValueChange = { v -> sizes[part.name] = v.filter(Char::isDigit).take(9) },
@@ -493,12 +508,18 @@ class MainActivity : ComponentActivity() {
                     leadingIcon = { Dot(color(i)) },
                     suffix = { Text("MiB") },
                     supportingText = {
-                        Text(stringResource(
-                            R.string.partition_size_hint,
-                            size(part.minimumMiB.toLong()), size(part.defaultMiB.toLong()),
-                        ))
+                        Text(
+                            if (optional(i)) {
+                                stringResource(R.string.partition_optional_hint, size(part.minimumMiB.toLong()))
+                            } else {
+                                stringResource(
+                                    R.string.partition_size_hint,
+                                    size(part.minimumMiB.toLong()), size(part.defaultMiB.toLong()),
+                                )
+                            }
+                        )
                     },
-                    isError = values[i] < part.minimumMiB,
+                    isError = invalid(i),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
@@ -509,6 +530,43 @@ class MainActivity : ComponentActivity() {
                     Text(stringResource(R.string.reset_sizes))
                 }
             }
+        }
+    }
+
+    /** Overlays of a whole disk installation (androidboot.mount_overlay), above the sizes of overlay partitions */
+    @Composable
+    private fun OverlayChoice(noOverlayPartition: Boolean) {
+        val choices = listOf(
+            "" to R.string.overlay_none,
+            "std_parts" to R.string.overlay_std_parts,
+            "imgs" to R.string.overlay_imgs,
+            "imgs_ram" to R.string.overlay_imgs_ram,
+        )
+        Column(Modifier.padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionTitle(stringResource(R.string.overlays))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(choices.size) { i ->
+                    val (value, label) = choices[i]
+                    FilterChip(
+                        selected = overlay == value,
+                        onClick = { overlay = value },
+                        label = { Text(stringResource(label)) },
+                    )
+                }
+            }
+            Text(
+                stringResource(
+                    when (overlay) {
+                        "std_parts" -> R.string.overlay_std_parts_summary
+                        "imgs" -> R.string.overlay_imgs_summary
+                        "imgs_ram" -> R.string.overlay_imgs_ram_summary
+                        else -> R.string.overlay_none_summary
+                    }
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (noOverlayPartition) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 

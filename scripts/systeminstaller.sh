@@ -9,6 +9,7 @@
 #   systeminstaller probe
 #   systeminstaller install-disk --target <disk> [--cmdline <text>]
 #       [--size <partition>=<MiB>]... [--userdata-fs ext4|f2fs]
+#       [--overlay std_parts|imgs|imgs_ram]
 #   systeminstaller install-beside --target <partition> [--userdata-size <MiB>]
 #       [--userdata-fs ext4|f2fs] [--userdata-images] [--cmdline <text>]
 #       [--no-boot-entries]
@@ -34,6 +35,16 @@ while [ $# -gt 0 ]; do
     --cmdline) cmdline=$2; shift ;;
     --userdata-size) userdata_size=$2; shift ;;
     --userdata-images) USERDATA_IMAGES=1 ;;
+    --overlay)
+        case $2 in
+        std_parts | imgs | imgs_ram) OVERLAY=$2 ;;
+        # overlayfs refuses FAT32 directories (own name hashing), the
+        # Android directory is on the EFI system partition
+        dirs) si_die "Overlay directories do not work on the EFI system partition" ;;
+        *) si_die "Unknown overlay mode $2" ;;
+        esac
+        shift
+        ;;
     --no-boot-entries) boot_entries=0 ;;
     --allow-downgrade) allow_downgrade=1 ;;
     --userdata-fs)
@@ -45,7 +56,9 @@ while [ $# -gt 0 ]; do
         ;;
     --size)
         case ${2%%=*} in
-        efi | system | system_dlkm | vendor | vendor_dlkm | metadata) eval "SIZE_${2%%=*}=\${2#*=}" ;;
+        efi | system | system_dlkm | vendor | vendor_dlkm | metadata | system_overlay | vendor_overlay)
+            eval "SIZE_${2%%=*}=\${2#*=}"
+            ;;
         *) si_die "Unknown partition ${2%%=*}" ;;
         esac
         shift

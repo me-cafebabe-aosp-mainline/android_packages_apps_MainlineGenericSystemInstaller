@@ -5,7 +5,8 @@
 # probe prints, tab separated:
 #
 #   LAYOUT  <partition> <default MiB> <minimum MiB>   of a whole disk
-#           installation, userdata takes the rest
+#           installation, userdata takes the rest. A default of 0: optional,
+#           not created unless given a size
 #   SERIAL  <name>   a serial port, or a virtio console (hvc)
 #   SYSTEM  <uefi|bios> <EFI bits: 64|32|> <Secure Boot: 1|0|> <arch>
 #           <device> <build date> <title> <default kernel command line>
@@ -136,6 +137,9 @@ probe() {
             printf 'LAYOUT\t%s\t%s\t%s\n' "$p" "$(layout_size "$p" "$mib")" "$(layout_minimum "$p" "$mib")"
         done
         printf 'LAYOUT\tmetadata\t%s\t%s\n' "$LAYOUT_SIZE_metadata" "$LAYOUT_HARD_MIN_metadata"
+        for p in $LAYOUT_OVERLAY_PARTS; do
+            printf 'LAYOUT\t%s_overlay\t0\t%s\n' "$p" "$(layout_minimum "${p}_overlay" 0)"
+        done
     fi
 
     src_disks=$(source_disks 2>/dev/null)

@@ -198,6 +198,13 @@ class SystemInstaller : public installer::BnSystemInstaller {
                     args.insert(args.end(),
                                 {"--size", size.name + "=" + std::to_string(size.sizeMiB)});
                 }
+                if (!request.overlay.empty()) {
+                    if (request.overlay != "std_parts" && request.overlay != "imgs" &&
+                        request.overlay != "imgs_ram") {
+                        return ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+                    }
+                    args.insert(args.end(), {"--overlay", request.overlay});
+                }
                 break;
             case installer::InstallRequest::MODE_BESIDE:
                 args = {"install-beside", "--userdata-size",

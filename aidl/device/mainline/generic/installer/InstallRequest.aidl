@@ -36,4 +36,10 @@ parcelable InstallRequest {
     boolean allowDowngrade;
     /** For MODE_DISK: sizes instead of the defaults */
     PartitionSize[] sizes = {};
+    /**
+     * For MODE_DISK: androidboot.mount_overlay, "std_parts" (overlay
+     * partitions, given a size in sizes), "imgs", "imgs_ram", or empty for
+     * none. Not "dirs": overlayfs refuses directories on FAT32.
+     */
+    @utf8InCpp String overlay = "";
 }

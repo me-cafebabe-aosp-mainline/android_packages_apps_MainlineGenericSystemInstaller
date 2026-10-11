@@ -37,7 +37,7 @@ install_grub_efi() {
 # SIZE_<partition> (MiB) overrides the default size of a partition,
 # USERDATA_FS (ext4 or f2fs) is the filesystem of userdata
 install_disk() {
-    local disk dev bios p src part mib sizes total done_mib from esp firmware need size min
+    local disk dev bios p src part mib sizes total done_mib from esp firmware need size min overlay
     disk=$1
     dev=/dev/block/$disk
     [ -b "$dev" ] || si_die "No disk $disk"
@@ -52,7 +52,8 @@ install_disk() {
     if [ "$3" = 1 ]; then
         for p in $(si_partitions "$disk"); do
             case $(si_partname "$p") in
-            bios | efi | system | system_dlkm | vendor | vendor_dlkm | metadata | userdata)
+            bios | efi | system | system_dlkm | vendor | vendor_dlkm | metadata | userdata | \
+                system_overlay | vendor_overlay)
                 eval "PART_$(si_partname "$p")=\$p"
                 ;;
             esp) PART_efi=$p ;;
@@ -69,13 +70,26 @@ install_disk() {
         done
         [ -n "$PART_bios" ] || bios=0
     else
+        # Overlay partitions: those given a size, which means OVERLAY=std_parts
+        LAYOUT_OVERLAYS=
+        for p in $LAYOUT_OVERLAY_PARTS; do
+            eval "size=\${SIZE_${p}_overlay:-0}"
+            [ "$size" -gt 0 ] 2>/dev/null && LAYOUT_OVERLAYS="$LAYOUT_OVERLAYS $p"
+        done
+        [ -z "$OVERLAY" ] && [ -n "$LAYOUT_OVERLAYS" ] && OVERLAY=std_parts
+        [ "$OVERLAY" = std_parts ] || LAYOUT_OVERLAYS=
+        [ "$OVERLAY" = std_parts ] && [ -z "$LAYOUT_OVERLAYS" ] &&
+            si_die "No overlay partition was given a size"
         sizes=
         need=$((2 + LAYOUT_MIN_USERDATA))
         [ "$bios" = 1 ] && need=$((need + LAYOUT_SIZE_bios))
-        for p in efi $LAYOUT_SYSTEM_PARTS metadata; do
+        for p in efi $LAYOUT_SYSTEM_PARTS $(layout_overlays) metadata; do
             if [ "$p" = metadata ]; then
                 mib=0
                 size=$LAYOUT_SIZE_metadata
+            elif [ "$p" != "${p%_overlay}" ]; then
+                mib=0
+                size=0
             else
                 eval "mib=\$MIB_$p"
                 size=$(layout_size "$p" "$mib")
@@ -123,6 +137,16 @@ install_disk() {
             si_die "Could not format the metadata partition"
         si_mkfs_userdata "/dev/block/$PART_userdata" "${USERDATA_FS:-ext4}" userdata ||
             si_die "Could not format the userdata partition"
+        for p in $(layout_overlays); do
+            si_progress 79 "Formatting the $p partition as EXT4"
+            eval "part=\$PART_$p"
+            si_mkfs_userdata "/dev/block/$part" ext4 "$p" || si_die "Could not format the $p partition"
+            # Its root is laid over the one of the partition: nothing in it
+            if si_mount "$part" rw; then
+                rmdir "$SI_MNT/lost+found"
+                si_umount "$SI_MNT"
+            fi
+        done
         si_progress 80 "Formatting the EFI system partition as FAT32"
         newfs_msdos -F 32 -L ESP "/dev/block/$PART_efi" >/dev/null ||
             si_die "Could not format the EFI system partition"
@@ -150,7 +174,18 @@ install_disk() {
         rm -f "$esp/android/firmware.img"
         firmware=0
     fi
-    grubcfg_disk "$(si_title)" "$(si_blkid "$PART_efi" UUID)" "$2" "$firmware" >"$esp/EFI/BOOT/grub.cfg"
+    if [ "$3" = 1 ]; then
+        # Keep the overlays of the installation
+        overlay=$(sed -n 's/.*androidboot\.mount_overlay=\([a-z_]*\).*/\1/p' \
+            "$esp/EFI/BOOT/grub.cfg" 2>/dev/null | head -n 1)
+        for p in $LAYOUT_OVERLAY_PARTS; do
+            eval "[ -n \"\$PART_${p}_overlay\" ]" && overlay=${overlay:-std_parts}
+        done
+    else
+        overlay=$OVERLAY
+    fi
+    grubcfg_disk "$(si_title)" "$(si_blkid "$PART_efi" UUID)" "$2" "$firmware" "$overlay" \
+        >"$esp/EFI/BOOT/grub.cfg"
     si_save_log "$esp/android"
     sync
     si_umount "$esp"

@@ -45,6 +45,16 @@
 
     <string name="partitions_title">Partition sizes</string>
     <string name="partition_size_hint">At least %1$s · default %2$s</string>
+    <string name="partition_optional_hint">0 to not create it · at least %1$s</string>
+    <string name="overlays">Overlays</string>
+    <string name="overlay_none">None</string>
+    <string name="overlay_std_parts">Partitions</string>
+    <string name="overlay_imgs">Images</string>
+    <string name="overlay_imgs_ram">Images in RAM</string>
+    <string name="overlay_none_summary">Files laid over the system and vendor partitions change them without touching the installation</string>
+    <string name="overlay_std_parts_summary">Empty partitions system_overlay and vendor_overlay. Give at least one of them a size</string>
+    <string name="overlay_imgs_summary">Images system_overlay.img and vendor_overlay.img (EXT4, EROFS or SquashFS) that you put in /android on the EFI system partition, which other operating systems can write: make it big enough</string>
+    <string name="overlay_imgs_ram_summary">Like images, copied to RAM when starting</string>
     <string name="userdata_rest">userdata gets the rest: %1$s</string>
     <string name="userdata_too_small">Not enough space for userdata, it needs at least %1$s</string>
     <string name="reset_sizes">Reset to the defaults</string>
