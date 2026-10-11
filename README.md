@@ -15,7 +15,7 @@ running system can be the live ISO, or an installed system.
 | Mode | Target | Result |
 |------|--------|--------|
 | Whole disk | A disk, erased | GPT with the partitions `bios` (BIOS boot), `efi` (EFI system), `system`, `system_dlkm`, `vendor`, `vendor_dlkm`, `metadata` and `userdata` (`mount_system=std_parts`). Sizes can be changed in the app (`--size`); by default twice the content, at least 1 GiB, 4 GiB, 128 MiB, 512 MiB, 512 MiB and 64 MiB, `userdata` takes the rest, as EXT4 or F2FS (`--userdata-fs`). Kernel, ramdisk and firmware image in `/android` of the EFI system partition. Boots with UEFI and BIOS. |
-| Beside another operating system | An EXT4, F2FS or NTFS partition | Images in `/android-system-<device>` (`mount_system=imgs`). User data in directories, on NTFS in images (`userdata.img` EXT4 or F2FS). Boot entries, see below. |
+| Beside another operating system | An EXT4, F2FS or NTFS partition | Images in `/android-system-<device>` (`mount_system=imgs`). User data in directories (`mount_userdata=bind_mount_dir`), or in images (`mount_userdata=imgs`, `--userdata-images`, always on NTFS; `userdata.img` EXT4 or F2FS). Boot entries, see below. |
 | Upgrade | An installation of either kind | Replaces the system, kernel, ramdisk and firmware, keeps the user data. Refuses an older build unless allowed. |
 
 What gets installed is what the running system was booted from: the
@@ -62,7 +62,8 @@ The scripts can also be run directly, as root:
 ```
 systeminstaller probe
 systeminstaller install-disk --target sdb
-systeminstaller install-beside --target nvme0n1p3 --userdata-size 16384
+systeminstaller install-beside --target nvme0n1p3
+systeminstaller install-beside --target nvme0n1p3 --userdata-images --userdata-size 16384
 systeminstaller upgrade --target sdb
 ```
 

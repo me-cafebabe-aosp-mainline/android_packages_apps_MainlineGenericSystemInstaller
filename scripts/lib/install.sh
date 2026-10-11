@@ -344,7 +344,9 @@ install_beside_entries() {
 
 # install_beside <partition> <userdata MiB> <kernel command line>
 # <boot entries: 1|0> <upgrade: 1|0> <allow downgrade: 1|0>
-# USERDATA_FS (ext4 or f2fs) is the filesystem of userdata.img on NTFS
+# User data goes to images (userdata.img, metadata.img) on NTFS, or with
+# USERDATA_IMAGES=1, otherwise to directories. USERDATA_FS (ext4 or f2fs) is
+# the filesystem of userdata.img.
 install_beside() {
     local part name fstype m dir mode need total p mib done_mib src from f cmdline
     part=$1
@@ -381,7 +383,7 @@ install_beside() {
         need=$MIB_BESIDE
     else
         [ -e "$dir" ] && si_die "There is already an installation on $part"
-        if [ "$fstype" = ntfs ]; then
+        if [ "$fstype" = ntfs ] || [ "$USERDATA_IMAGES" = 1 ]; then
             mode=imgs
             need=$((MIB_BESIDE + $2 + LAYOUT_SIZE_metadata))
         else

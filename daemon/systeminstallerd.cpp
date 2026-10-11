@@ -202,6 +202,7 @@ class SystemInstaller : public installer::BnSystemInstaller {
             case installer::InstallRequest::MODE_BESIDE:
                 args = {"install-beside", "--userdata-size",
                         std::to_string(request.userdataSizeMiB)};
+                if (request.userdataImages) args.push_back("--userdata-images");
                 break;
             case installer::InstallRequest::MODE_UPGRADE:
                 args = {"upgrade"};

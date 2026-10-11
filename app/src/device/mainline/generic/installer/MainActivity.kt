@@ -157,6 +157,7 @@ class MainActivity : ComponentActivity() {
     private var bootEntries by mutableStateOf(true)
     private var allowDowngrade by mutableStateOf(false)
     private var userdataFs by mutableStateOf("ext4")
+    private var userdataImages by mutableStateOf(false)
     /** Partition sizes in MiB, as typed, for the disk in sizesTarget */
     private val sizes = mutableStateMapOf<String, String>()
     private var sizesTarget = ""
@@ -212,6 +213,7 @@ class MainActivity : ComponentActivity() {
             it.bootEntries = bootEntries
             it.allowDowngrade = allowDowngrade
             it.userdataFs = userdataFs
+            it.userdataImages = mode == InstallRequest.MODE_BESIDE && userdataImages
             it.sizes = if (mode == InstallRequest.MODE_DISK) {
                 p.layout.mapNotNull { l ->
                     sizes[l.name]?.toIntOrNull()?.takeIf { v -> v != l.defaultMiB }?.let { v ->
@@ -536,8 +538,11 @@ class MainActivity : ComponentActivity() {
     private fun isNtfsTarget() = mode == InstallRequest.MODE_BESIDE &&
         probe?.partitions?.any { it.name == target && it.fsType == "ntfs" } == true
 
-    /** Whether userdata gets a filesystem of its own: a partition, or an image on NTFS */
-    private fun hasUserdataFs() = mode == InstallRequest.MODE_DISK || isNtfsTarget()
+    /** Beside another operating system: user data in images, always on NTFS */
+    private fun hasUserdataImages() = mode == InstallRequest.MODE_BESIDE && (userdataImages || isNtfsTarget())
+
+    /** Whether userdata gets a filesystem of its own: a partition, or an image */
+    private fun hasUserdataFs() = mode == InstallRequest.MODE_DISK || hasUserdataImages()
 
     private fun hasBootEntries() = when (mode) {
         InstallRequest.MODE_BESIDE -> true
@@ -563,6 +568,32 @@ class MainActivity : ComponentActivity() {
             secondary = Action(stringResource(R.string.back)) { back() },
         ) {
             bootOptions()
+            if (mode == InstallRequest.MODE_BESIDE && !isNtfsTarget()) {
+                item { SectionTitle(stringResource(R.string.userdata_storage)) }
+                item {
+                    val choices = listOf(false to R.string.userdata_dirs, true to R.string.userdata_imgs)
+                    Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
+                        choices.forEachIndexed { i, (images, label) ->
+                            ToggleButton(
+                                checked = userdataImages == images,
+                                onCheckedChange = { userdataImages = images },
+                                shapes = if (i == 0) ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                         else ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                                modifier = Modifier.weight(1f),
+                            ) { Text(stringResource(label)) }
+                        }
+                    }
+                }
+                item {
+                    Text(
+                        stringResource(
+                            if (userdataImages) R.string.userdata_imgs_summary else R.string.userdata_dirs_summary
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             if (hasUserdataFs()) {
                 item { SectionTitle(stringResource(R.string.userdata_fs)) }
                 item {
@@ -580,7 +611,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            if (isNtfsTarget()) {
+            if (hasUserdataImages()) {
                 item {
                     OutlinedTextField(
                         value = userdataGiB,

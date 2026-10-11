@@ -94,6 +94,11 @@
     <string name="opt_adb_summary">ADB runs as root, earlier during boot, and accepts any computer</string>
     <string name="opt_early_logs">Save early boot logs</string>
     <string name="opt_early_logs_summary">Keeps the logs of the first boot stage</string>
+    <string name="userdata_storage">Storage of the user data</string>
+    <string name="userdata_dirs">Directories</string>
+    <string name="userdata_imgs">Images</string>
+    <string name="userdata_dirs_summary">Files on the partition, sharing its free space with the other operating system</string>
+    <string name="userdata_imgs_summary">Images of a fixed size, with a filesystem of their own</string>
     <string name="userdata_fs">Filesystem of the user data</string>
     <string name="userdata_size">Size of the user data, in GiB</string>
     <string name="boot_entries">Add boot entries</string>

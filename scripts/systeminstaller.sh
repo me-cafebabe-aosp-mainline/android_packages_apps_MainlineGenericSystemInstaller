@@ -10,7 +10,8 @@
 #   systeminstaller install-disk --target <disk> [--cmdline <text>]
 #       [--size <partition>=<MiB>]... [--userdata-fs ext4|f2fs]
 #   systeminstaller install-beside --target <partition> [--userdata-size <MiB>]
-#       [--userdata-fs ext4|f2fs] [--cmdline <text>] [--no-boot-entries]
+#       [--userdata-fs ext4|f2fs] [--userdata-images] [--cmdline <text>]
+#       [--no-boot-entries]
 #   systeminstaller upgrade --target <disk or partition> [--cmdline <text>]
 #       [--no-boot-entries] [--allow-downgrade]
 #
@@ -32,6 +33,7 @@ while [ $# -gt 0 ]; do
     --target) target=$2; shift ;;
     --cmdline) cmdline=$2; shift ;;
     --userdata-size) userdata_size=$2; shift ;;
+    --userdata-images) USERDATA_IMAGES=1 ;;
     --no-boot-entries) boot_entries=0 ;;
     --allow-downgrade) allow_downgrade=1 ;;
     --userdata-fs)
