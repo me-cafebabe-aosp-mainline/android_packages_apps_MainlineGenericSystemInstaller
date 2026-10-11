@@ -1,0 +1,21 @@
+//
+// SPDX-FileCopyrightText: The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
+sh_binary {
+    name: "systeminstaller",
+    src: "systeminstaller.sh",
+    system_ext_specific: true,
+    required: [
+        "systeminstaller_grub",
+        "systeminstaller_lib",
+    ],
+}
+
+prebuilt_etc {
+    name: "systeminstaller_lib",
+    srcs: ["lib/*.sh"],
+    sub_dir: "systeminstaller/lib",
+    system_ext_specific: true,
+}

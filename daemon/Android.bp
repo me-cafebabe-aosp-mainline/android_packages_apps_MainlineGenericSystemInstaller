@@ -1,0 +1,19 @@
+//
+// SPDX-FileCopyrightText: The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
+cc_binary {
+    name: "systeminstallerd",
+    srcs: ["systeminstallerd.cpp"],
+    init_rc: ["systeminstallerd.rc"],
+    system_ext_specific: true,
+    header_libs: ["libcutils_headers"],
+    shared_libs: [
+        "device.mainline.generic.installer-ndk",
+        "libbase",
+        "libbinder_ndk",
+        "liblog",
+    ],
+    required: ["systeminstaller"],
+}

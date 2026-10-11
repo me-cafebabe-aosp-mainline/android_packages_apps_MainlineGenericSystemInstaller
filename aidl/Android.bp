@@ -1,0 +1,27 @@
+//
+// SPDX-FileCopyrightText: The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
+// Between SystemInstaller and systeminstallerd, which are always built
+// together: unstable.
+aidl_interface {
+    name: "device.mainline.generic.installer",
+    srcs: ["device/mainline/generic/installer/*.aidl"],
+    unstable: true,
+    system_ext_specific: true,
+    backend: {
+        cpp: {
+            enabled: false,
+        },
+        java: {
+            platform_apis: true,
+        },
+        ndk: {
+            enabled: true,
+        },
+        rust: {
+            enabled: false,
+        },
+    },
+}

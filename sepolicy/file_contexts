@@ -1,0 +1,3 @@
+# system_ext is inside the system image of the generic tree
+/(system_ext|system/system_ext)/bin/systeminstaller     u:object_r:systeminstallerd_exec:s0
+/(system_ext|system/system_ext)/bin/systeminstallerd    u:object_r:systeminstallerd_exec:s0

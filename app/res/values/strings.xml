@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="app_name">System installer</string>
+    <string name="settings_summary">Install this system to a disk</string>
+
+    <string name="loading">Looking for disks…</string>
+    <string name="running">An installation is already running.</string>
+    <string name="unavailable">The installer is not available: %1$s</string>
+    <string name="no_source">This system can not be installed: %1$s</string>
+    <string name="system_subtitle">%1$s for %2$s · %3$s</string>
+    <string name="firmware_uefi">UEFI, %1$d-bit</string>
+    <string name="firmware_bios">BIOS</string>
+    <string name="secure_boot_on">Secure Boot is on: turn it off in the firmware settings, or the installed system does not boot.</string>
+
+    <string name="mode_title">What to do</string>
+    <string name="mode_disk">Install to a whole disk</string>
+    <string name="mode_disk_summary">Erases the disk</string>
+    <string name="mode_beside">Install beside another operating system</string>
+    <string name="mode_beside_summary">Adds files to an EXT4, F2FS or NTFS partition</string>
+    <string name="mode_upgrade">Upgrade an installation</string>
+    <string name="mode_upgrade_summary">Keeps the user data</string>
+
+    <string name="target_disk">Choose the disk</string>
+    <string name="target_beside">Choose the partition</string>
+    <string name="target_upgrade">Choose the installation</string>
+    <string name="target_none">Nothing usable was found.</string>
+    <string name="free">%1$s free</string>
+    <string name="built">Built %1$s</string>
+    <string name="disk_nvme">NVMe SSD</string>
+    <string name="disk_ssd">SATA SSD</string>
+    <string name="disk_hdd">Hard disk</string>
+    <string name="disk_usb">USB drive</string>
+    <string name="disk_sd">SD card</string>
+    <string name="disk_emmc">eMMC</string>
+    <string name="disk_ufs">UFS</string>
+    <string name="disk_virtual">Virtual disk</string>
+    <string name="disk_other">Disk</string>
+    <string name="kind_disk">whole disk</string>
+    <string name="kind_beside">beside another operating system</string>
+    <string name="kind_package">installed by a package</string>
+
+    <string name="mount_none">None</string>
+    <string name="mount_partitions">Partitions</string>
+    <string name="mount_images">Images</string>
+    <string name="mount_images_ram">Images in RAM</string>
+    <string name="mount_dirs">Directories</string>
+
+    <string name="partitions_title">Partition sizes</string>
+    <string name="partition_size_hint">At least %1$s · default %2$s</string>
+    <string name="partition_optional_hint">0 to not create it · at least %1$s</string>
+    <string name="overlays">Overlays</string>
+    <string name="overlay_none_summary">Files laid over the system and vendor partitions change them without touching the installation</string>
+    <string name="overlay_partitions_summary">Empty partitions system_overlay and vendor_overlay. Give at least one of them a size</string>
+    <string name="overlay_images_summary">Images system_overlay.img and vendor_overlay.img (EXT4, EROFS or SquashFS) that you put in /android on the EFI system partition: make it big enough</string>
+    <string name="overlay_images_android_summary">Images system_overlay.img and vendor_overlay.img (EXT4, EROFS or SquashFS) that you put in /android on the android partition</string>
+    <string name="overlay_dirs_summary">Directories system_overlay and vendor_overlay in /android on the android partition</string>
+    <string name="overlay_images_ram_summary">Like images, copied to RAM when starting</string>
+    <string name="partition_rest">%1$s gets the rest: %2$s</string>
+    <string name="partition_too_small">Not enough space for %1$s, it needs at least %2$s</string>
+    <string name="layout_system">System</string>
+    <string name="layout_userdata">User data</string>
+    <string name="android_fs">Filesystem of the android partition</string>
+    <string name="layout_partitions_summary">A partition for each part of the system and of the user data. The kernel goes to the EFI system partition</string>
+    <string name="layout_android_summary">Images and directories go to an android partition, with the kernel. The EFI system partition only holds GRUB</string>
+    <string name="reset_sizes">Reset to the defaults</string>
+    <string name="options_title">Options</string>
+    <string name="cmdline">Kernel command line</string>
+    <string name="cmdline_summary">The options above change it too. Parameters for how to mount the system are added when installing.</string>
+    <string name="graphics">Graphics</string>
+    <string name="graphics_auto">Automatic</string>
+    <string name="graphics_auto_summary">The GPU with Mesa, when the graphics card is supported</string>
+    <string name="graphics_fb">Framebuffer</string>
+    <string name="graphics_fb_summary">Display through framebuffer devices: works with most graphics cards, with fewer features</string>
+    <string name="graphics_swiftshader">SwiftShader</string>
+    <string name="graphics_swiftshader_summary">Rendering on the CPU with SwiftShader: slow, but needs no graphics driver</string>
+    <string name="lcd_density">Screen density</string>
+    <string name="lcd_density_auto">Automatic</string>
+    <string name="lcd_density_summary">Size of the user interface, in dots per inch. Automatic computes it from the display.</string>
+    <string name="fbcon_rotation">Framebuffer console rotation</string>
+    <string name="fbcon_rotation_summary">For displays mounted in portrait or upside down: rotates the text console of the kernel.</string>
+    <string name="logcat_serial">Logcat on the serial port</string>
+    <string name="logcat_crash">Crashes</string>
+    <string name="logcat_default">Main</string>
+    <string name="logcat_all">All</string>
+    <string name="logcat_summary">Mirrors logcat to a serial port (androidboot.seriallogging)</string>
+    <string name="serial_ports">Serial ports</string>
+    <string name="serial_found">Found on this computer: %1$s</string>
+    <string name="serial_none_found">No serial port was found on this computer. One can still be written by hand.</string>
+    <string name="serial_kernel">Kernel messages</string>
+    <string name="serial_kernel_summary">The kernel console on a serial port (console=)</string>
+    <string name="android_console_summary">Where Android starts its shell (androidboot.console)</string>
+    <string name="serial_off">Off</string>
+    <string name="serial_other">Other</string>
+    <string name="serial_port_name">Serial port</string>
+    <string name="serial_port_hint">For example ttyS0, ttyAMA0, or hvc0 for a virtio console</string>
+    <string name="boot_options">Boot options</string>
+    <string name="opt_bootsplash">Boot splash</string>
+    <string name="opt_bootsplash_summary">A splash screen with the progress of starting</string>
+    <string name="opt_virt_wifi">Ethernet as Wi-Fi</string>
+    <string name="opt_virt_wifi_summary">Shows an Ethernet connection to apps as a Wi-Fi network (virt_wifi)</string>
+    <string name="opt_fbcon">Framebuffer console</string>
+    <string name="opt_fbcon_summary">Kernel messages on the screen</string>
+    <string name="opt_quiet">Quiet</string>
+    <string name="opt_quiet_summary">Only important kernel messages while starting</string>
+    <string name="android_console">Android shell</string>
+    <string name="android_console_default">Default</string>
+    <string name="android_console_screen">Screen</string>
+    <string name="opt_adb">Debugging without authorization</string>
+    <string name="opt_adb_summary">ADB runs as root, earlier during boot, and accepts any computer</string>
+    <string name="opt_early_logs">Save early boot logs</string>
+    <string name="opt_early_logs_summary">Keeps the logs of the first boot stage</string>
+    <string name="debugging">Debugging</string>
+    <string name="opt_pstore">Crash logs in EFI variables</string>
+    <string name="opt_pstore_summary">Keeps the kernel log of a crash in the EFI variables (pstore), to read after the next boot</string>
+    <string name="opt_console_mode">Console mode</string>
+    <string name="opt_console_mode_summary">A shell on the console before Android starts; Android starts when it exits</string>
+    <string name="first_stage_console">First stage console</string>
+    <string name="first_stage_console_off">Off</string>
+    <string name="first_stage_console_early">Before mounting</string>
+    <string name="first_stage_console_late">After mounting</string>
+    <string name="first_stage_console_summary">A shell in the first boot stage, on the console of console=</string>
+    <string name="first_stage_console_early_summary">A shell from the ramdisk right after its modules are loaded, before anything is mounted. The boot goes on when it exits</string>
+    <string name="first_stage_console_late_summary">A shell from the vendor partition once everything is mounted. The boot goes on when it exits</string>
+    <string name="userdata_dirs_summary">Files on the partition, sharing its free space with the other operating system</string>
+    <string name="userdata_images_summary">Images of a fixed size, with a filesystem of their own</string>
+    <string name="firmware">Firmware</string>
+    <string name="firmware_image">Copy</string>
+    <string name="firmware_linux">From the Linux system</string>
+    <string name="firmware_image_summary">A copy of the firmware of this system, about 1 GiB</string>
+    <string name="firmware_linux_summary">The firmware files of the Linux system on this partition, kept up to date by it. Some may be missing if it does not need them</string>
+    <string name="userdata_fs">Filesystem of the user data</string>
+    <string name="userdata_size">Size of the user data, in GiB</string>
+    <string name="boot_entries">Add boot entries</string>
+    <string name="boot_entries_summary">GRUB on the EFI system partition, and in the GRUB menu of a Linux system on the partition</string>
+    <string name="allow_downgrade">Allow installing an older build</string>
+    <string name="allow_downgrade_summary">Android may not start with user data of a newer build</string>
+
+    <string name="confirm_title">Ready to install</string>
+    <string name="confirm_disk">Everything on %1$s (%2$s) will be erased.</string>
+    <string name="confirm_type">Type %1$s to confirm</string>
+    <string name="confirm_beside">%1$s will be installed on %2$s.</string>
+    <string name="confirm_upgrade">The installation on %1$s will be upgraded to %2$s.</string>
+
+    <string name="progress_title">Installing</string>
+    <string name="progress_done">The installation finished</string>
+    <string name="done_title">Installed</string>
+    <string name="done_message">Restart now. Leave the installation media in until the computer has shut down: the running system may still be using it. Remove it before the computer starts again.\n\nThe log of the installation is saved as installer.log next to the installed system.</string>
+    <string name="failed_title">The installation failed</string>
+
+    <string name="save_log">Save log</string>
+    <string name="back">Back</string>
+    <string name="next">Next</string>
+    <string name="install">Install</string>
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+    <string name="restart">Restart</string>
+</resources>
