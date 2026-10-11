@@ -97,6 +97,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -145,8 +146,6 @@ class MainActivity : ComponentActivity() {
     private var bootEntries by mutableStateOf(true)
     private var allowDowngrade by mutableStateOf(false)
     private var userdataFs by mutableStateOf("ext4")
-    /** For the serial options; changing it renames the port in the command line */
-    private var serialPort by mutableStateOf("")
     /** Partition sizes in MiB, as typed, for the disk in sizesTarget */
     private val sizes = mutableStateMapOf<String, String>()
     private var sizesTarget = ""
@@ -179,7 +178,6 @@ class MainActivity : ComponentActivity() {
                 installer = service
                 this.probe = probe
                 cmdline = probe.system.defaultCmdline
-                serialPort = detectSerialPort(probe.system.arch)
                 screen = Screen.MODES
             }.onFailure {
                 message = getString(R.string.unavailable, it.message)
@@ -646,7 +644,8 @@ class MainActivity : ComponentActivity() {
     )
 
     //
-    // Serial port
+    // Serial ports: each use (kernel messages, Android shell, logcat) takes
+    // a port of its own, or none
     //
 
     private fun detectedSerialPorts() = probe?.serialPorts?.toList().orEmpty()
@@ -661,45 +660,40 @@ class MainActivity : ComponentActivity() {
         else -> false
     }
 
-    private fun detectSerialPort(arch: String): String {
-        val tokens = cmdlineTokens()
-        fun value(key: String) = tokens.filter { it.startsWith(key) }
-            .map { it.removePrefix(key).substringBefore(',') }.lastOrNull { isSerialPort(it) }
-        return value("console=") ?: value("androidboot.seriallogging=") ?: value("androidboot.console=")
-            ?: detectedSerialPorts().firstOrNull() ?: if (arch == "x86_64") "ttyS0" else "ttyAMA0"
+    /** The value of the last token with this key, like androidboot.console= */
+    private fun tokenValue(key: String) =
+        cmdlineTokens().lastOrNull { it.startsWith(key) }?.removePrefix(key)
+
+    private fun setToken(key: String, value: String?) {
+        val rest = cmdlineTokens().filter { !it.startsWith(key) }
+        cmdline = (rest + listOfNotNull(value?.let { key + it })).joinToString(" ")
     }
 
-    private fun isConsole(token: String, port: String) =
-        token == "console=$port" || token.startsWith("console=$port,")
+    /** console= of a serial port, without options like ,115200 */
+    private fun serialConsolePort(token: String) = token.takeIf { it.startsWith("console=") }
+        ?.removePrefix("console=")?.substringBefore(',')?.takeIf { isSerialPort(it) }
 
-    private fun changeSerialPort(port: String) {
-        val old = serialPort
-        serialPort = port
-        if (!isSerialPort(port) || port == old) return
-        cmdline = cmdlineTokens().mapNotNull {
-            when {
-                isConsole(it, old) -> "console=$port" + it.removePrefix("console=$old")
-                it == "androidboot.seriallogging=$old" -> "androidboot.seriallogging=$port"
-                it == "androidboot.console=$old" -> "androidboot.console=$port"
-                // Only ttyS0 is registered with it
-                it == "8250.nr_uarts=1" && port != "ttyS0" -> null
-                else -> it
-            }
-        }.joinToString(" ")
+    /** The serial port of the kernel console; console=tty0 is the framebuffer console */
+    private fun kernelSerialPort() = cmdlineTokens().mapNotNull { serialConsolePort(it) }.lastOrNull()
+
+    private fun setKernelSerialPort(port: String?) {
+        if (port == kernelSerialPort()) return
+        val rest = cmdlineTokens().filter {
+            // 8250.nr_uarts=1 only registers ttyS0
+            serialConsolePort(it) == null && !(it == "8250.nr_uarts=1" && port != "ttyS0")
+        }
+        cmdline = (rest + listOfNotNull(port?.let { "console=$it" })).joinToString(" ")
     }
 
-    private fun serialConsoleToggle() = BootToggle(
-        R.string.opt_serial, R.string.opt_serial_summary,
-        { cmdlineTokens().any { isConsole(it, serialPort) } },
-        { on ->
-            val rest = cmdlineTokens().filter { !isConsole(it, serialPort) && it != "8250.nr_uarts=1" }
-            cmdline = (rest + if (on) listOf("console=$serialPort") else emptyList()).joinToString(" ")
-        },
-    )
+    private fun logcatPort() = tokenValue("androidboot.seriallogging=")
+
+    private fun setLogcatPort(port: String?) {
+        setToken("androidboot.seriallogging=", port)
+        if (port == null) setToken("androidboot.seriallogging.logcat_buffer=", null)
+    }
 
     private fun bootToggles() = listOf(
         tokenToggle(R.string.opt_fbcon, R.string.opt_fbcon_summary, listOf("console=tty0")),
-        serialConsoleToggle(),
         tokenToggle(R.string.opt_quiet, R.string.opt_quiet_summary, listOf("quiet")),
         tokenToggle(R.string.opt_bootsplash, R.string.opt_bootsplash_summary, listOf("androidboot.bootsplash=1")),
         tokenToggle(R.string.opt_adb, R.string.opt_adb_summary, listOf("androidboot.insecure_adb=true")),
@@ -737,32 +731,6 @@ class MainActivity : ComponentActivity() {
                     if (i == 0) emptyList() else listOf("fbcon=rotate:$i"))
             },
         ))
-        add(BootSelection(
-            stringResource(R.string.android_console),
-            listOf("androidboot.console="),
-            listOf(
-                BootChoice(stringResource(R.string.android_console_default),
-                    stringResource(R.string.android_console_default_summary), emptyList()),
-                BootChoice(stringResource(R.string.android_console_screen),
-                    stringResource(R.string.android_console_screen_summary), listOf("androidboot.console=tty0")),
-                BootChoice(serialPort, stringResource(R.string.android_console_serial_summary),
-                    listOf("androidboot.console=$serialPort")),
-            ),
-        ))
-        val logcat = listOf("androidboot.seriallogging=$serialPort")
-        add(BootSelection(
-            stringResource(R.string.logcat_serial),
-            listOf("androidboot.seriallogging=", "androidboot.seriallogging.logcat_buffer="),
-            listOf(
-                BootChoice(stringResource(R.string.logcat_off), stringResource(R.string.logcat_summary), emptyList()),
-                BootChoice(stringResource(R.string.logcat_crash), stringResource(R.string.logcat_summary),
-                    logcat + "androidboot.seriallogging.logcat_buffer=crash"),
-                BootChoice(stringResource(R.string.logcat_default), stringResource(R.string.logcat_summary),
-                    logcat + "androidboot.seriallogging.logcat_buffer=default"),
-                BootChoice(stringResource(R.string.logcat_all), stringResource(R.string.logcat_summary),
-                    logcat + "androidboot.seriallogging.logcat_buffer=all"),
-            ),
-        ))
     }
 
     private fun select(selection: BootSelection, choice: BootChoice) {
@@ -774,7 +742,6 @@ class MainActivity : ComponentActivity() {
         selection.choices.lastOrNull { it.tokens.isNotEmpty() && hasTokens(it.tokens) } ?: selection.choices.first()
 
     private fun LazyListScope.bootOptions() {
-        item { SerialPort() }
         item { BootSelections() }
         item { SectionTitle(stringResource(R.string.boot_options)) }
         val toggles = bootToggles()
@@ -787,39 +754,126 @@ class MainActivity : ComponentActivity() {
                 trailingContent = { Switch(checked = checked, onCheckedChange = null) },
             ) { Text(stringResource(toggle.title)) }
         }
+        item { SerialPorts() }
     }
 
     @Composable
-    private fun SerialPort() {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionTitle(stringResource(R.string.serial_port))
-            OutlinedTextField(
-                value = serialPort,
-                onValueChange = { changeSerialPort(it.trim()) },
-                supportingText = { Text(stringResource(R.string.serial_port_summary)) },
-                isError = !isSerialPort(serialPort),
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            val detected = detectedSerialPorts()
-            if (detected.isNotEmpty()) {
+    private fun SerialPorts() {
+        val detected = detectedSerialPorts()
+        val kernel = kernelSerialPort()
+        val shell = tokenValue("androidboot.console=")
+        val logcat = logcatPort()
+        // Found ones, and the ones the command line already uses
+        val ports = (detected + listOfNotNull(kernel, shell, logcat).filter { isSerialPort(it) }).distinct()
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column {
+                SectionTitle(stringResource(R.string.serial_ports))
                 Text(
-                    stringResource(R.string.serial_port_detected),
-                    style = MaterialTheme.typography.labelLarge,
+                    if (detected.isEmpty()) stringResource(R.string.serial_none_found)
+                    else stringResource(R.string.serial_found, detected.joinToString(", ")),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(detected.size) { i ->
-                        val port = detected[i]
-                        FilterChip(
-                            selected = port == serialPort,
-                            onClick = { changeSerialPort(port) },
-                            label = { Text(port) },
-                        )
+            }
+            SerialUse(R.string.serial_kernel, R.string.serial_kernel_summary, kernel, ports) {
+                setKernelSerialPort(it)
+            }
+            SerialUse(
+                R.string.android_console, R.string.android_console_summary, shell, ports,
+                extra = listOf(stringResource(R.string.android_console_screen) to "tty0"),
+                off = R.string.android_console_default,
+            ) { setToken("androidboot.console=", it) }
+            SerialUse(R.string.logcat_serial, R.string.logcat_summary, logcat, ports) { setLogcatPort(it) }
+            if (logcat != null) {
+                val buffer = tokenValue("androidboot.seriallogging.logcat_buffer=") ?: "crash"
+                val buffers = listOf(
+                    R.string.logcat_crash to "crash", R.string.logcat_default to "default", R.string.logcat_all to "all",
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
+                    buffers.forEachIndexed { i, (label, value) ->
+                        ToggleButton(
+                            checked = buffer == value,
+                            onCheckedChange = { setToken("androidboot.seriallogging.logcat_buffer=", value) },
+                            shapes = when (i) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                buffers.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            },
+                            modifier = Modifier.weight(1f),
+                        ) { Text(stringResource(label), maxLines = 1) }
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * One use of a serial port: off (null), one of extra (label to value),
+     * one of the ports, or another port written by hand
+     */
+    @Composable
+    private fun SerialUse(
+        title: Int,
+        summary: Int,
+        current: String?,
+        ports: List<String>,
+        extra: List<Pair<String, String>> = emptyList(),
+        off: Int = R.string.serial_off,
+        onSelect: (String?) -> Unit,
+    ) {
+        var other by remember { mutableStateOf(false) }
+        var otherText by remember { mutableStateOf("") }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.padding(horizontal = 4.dp)) {
+                Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(summary),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    FilterChip(
+                        selected = !other && current == null,
+                        onClick = { other = false; onSelect(null) },
+                        label = { Text(stringResource(off)) },
+                    )
+                }
+                items(extra.size + ports.size) { i ->
+                    val (label, value) = extra.getOrNull(i) ?: (ports[i - extra.size] to ports[i - extra.size])
+                    FilterChip(
+                        selected = !other && current == value,
+                        onClick = { other = false; onSelect(value) },
+                        label = { Text(label) },
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = other,
+                        onClick = {
+                            other = true
+                            otherText = current?.takeIf { isSerialPort(it) }.orEmpty()
+                        },
+                        label = { Text(stringResource(R.string.serial_other)) },
+                    )
+                }
+            }
+            if (other) {
+                OutlinedTextField(
+                    value = otherText,
+                    onValueChange = { v ->
+                        otherText = v.trim()
+                        if (isSerialPort(otherText)) onSelect(otherText)
+                    },
+                    label = { Text(stringResource(R.string.serial_port_name)) },
+                    supportingText = { Text(stringResource(R.string.serial_port_hint)) },
+                    isError = otherText.isNotEmpty() && !isSerialPort(otherText),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
