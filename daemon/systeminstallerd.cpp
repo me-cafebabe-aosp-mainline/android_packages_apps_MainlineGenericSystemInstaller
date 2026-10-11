@@ -211,6 +211,12 @@ class SystemInstaller : public installer::BnSystemInstaller {
         if (request.target.empty() || request.target.find('/') != std::string::npos) {
             return ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
         }
+        if (request.mode != installer::InstallRequest::MODE_UPGRADE) {
+            if (request.userdataFs != "ext4" && request.userdataFs != "f2fs") {
+                return ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+            }
+            args.insert(args.end(), {"--userdata-fs", request.userdataFs});
+        }
         args.insert(args.end(), {"--target", request.target});
         if (!request.cmdline.empty()) args.insert(args.end(), {"--cmdline", request.cmdline});
         if (!request.bootEntries) args.push_back("--no-boot-entries");

@@ -19,6 +19,11 @@ parcelable InstallRequest {
     @utf8InCpp String target;
     /** Size of userdata.img, for MODE_BESIDE on NTFS */
     int userdataSizeMiB = 16384;
+    /**
+     * Filesystem of userdata, "ext4" or "f2fs": for MODE_DISK, and for
+     * MODE_BESIDE on NTFS (userdata.img)
+     */
+    @utf8InCpp String userdataFs = "ext4";
     /** Kernel command line without the boot method, empty for the default */
     @utf8InCpp String cmdline;
     /** For MODE_BESIDE and MODE_UPGRADE of such an installation */
