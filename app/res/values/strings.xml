@@ -108,6 +108,7 @@
     <string name="confirm_upgrade">The installation on %1$s will be upgraded to %2$s.</string>
 
     <string name="progress_title">Installing</string>
+    <string name="progress_done">The installation finished</string>
     <string name="done_title">Installed</string>
     <string name="done_message">Restart now. Leave the installation media in until the computer has shut down: the running system may still be using it. Remove it before the computer starts again.\n\nThe log of the installation is saved as installer.log next to the installed system.</string>
     <string name="failed_title">The installation failed</string>

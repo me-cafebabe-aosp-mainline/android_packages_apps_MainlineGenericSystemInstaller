@@ -164,6 +164,8 @@ class MainActivity : ComponentActivity() {
     private var progress by mutableFloatStateOf(0f)
     private var step by mutableStateOf("")
     private var destructive by mutableStateOf(false)
+    /** Result of the installation, null while it runs. The progress page stays until Next. */
+    private var finished by mutableStateOf<Boolean?>(null)
     private val log = mutableStateListOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -226,6 +228,7 @@ class MainActivity : ComponentActivity() {
         progress = 0f
         step = ""
         destructive = false
+        finished = null
         log.clear()
         screen = Screen.PROGRESS
 
@@ -241,14 +244,14 @@ class MainActivity : ComponentActivity() {
 
             override fun onFinished(success: Boolean, error: String) = runOnUiThread {
                 message = error
-                screen = if (success) Screen.DONE else Screen.FAILED
+                finished = success
             }
         }
         executor.execute {
             runCatching { installer!!.start(request, callback) }.onFailure {
                 runOnUiThread {
                     message = it.message ?: it.toString()
-                    screen = Screen.FAILED
+                    finished = false
                 }
             }
         }
@@ -984,9 +987,15 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(log.size) { if (log.isNotEmpty()) logState.animateScrollToItem(log.lastIndex) }
         Page(
             title = stringResource(R.string.progress_title),
-            subtitle = step.ifEmpty { null },
-            primary = null,
-            secondary = Action(stringResource(R.string.cancel), !destructive) {
+            subtitle = when (finished) {
+                true -> stringResource(R.string.progress_done)
+                false -> stringResource(R.string.failed_title)
+                null -> step.ifEmpty { null }
+            },
+            primary = Action(stringResource(R.string.next), finished != null) {
+                screen = if (finished == true) Screen.DONE else Screen.FAILED
+            },
+            secondary = Action(stringResource(R.string.cancel), !destructive && finished == null) {
                 destructive = true
                 executor.execute { runCatching { installer?.cancel() } }
             },
