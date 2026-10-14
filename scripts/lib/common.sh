@@ -84,8 +84,8 @@ si_default_cmdline() {
     for t in $(cat /proc/cmdline); do
         case $t in
         BOOT_IMAGE=* | initrd=* | androidboot.android_dir=* | androidboot.android_dir_dev=* | \
-            androidboot.mount_*=* | androidboot.live=* | androidboot.first_stage_console=* | \
-            androidboot.mode=*) ;;
+            androidboot.android_iso_uuid=* | androidboot.mount_*=* | androidboot.live=* | \
+            androidboot.first_stage_console=* | androidboot.mode=*) ;;
         *) out="$out $t" ;;
         esac
     done
