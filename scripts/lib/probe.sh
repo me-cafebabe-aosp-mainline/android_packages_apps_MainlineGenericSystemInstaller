@@ -11,6 +11,8 @@
 #           efi_android: efi (as --size efi) with an android partition, which
 #           has the kernel
 #   SERIAL  <name>   a serial port, or a virtio console (hvc)
+#   DRM     <driver> <render node: 1|0> <monitor connected: 1|0>   a
+#           graphics device
 #   SYSTEM  <uefi|bios> <EFI bits: 64|32|> <Secure Boot: 1|0|> <arch>
 #           <device> <build date> <title> <default kernel command line>
 #           <source found: 1|0> <why not>
@@ -139,6 +141,26 @@ probe_serial_ports() {
     done
 }
 
+probe_drm_devices() {
+    local c driver render connected s
+    for c in /sys/class/drm/card[0-9]*; do
+        # card0-HDMI-A-1 is a connector
+        case ${c##*/} in *-*) continue ;; esac
+        driver=$(readlink "$c/device/driver" 2>/dev/null)
+        driver=${driver##*/}
+        [ -n "$driver" ] || continue
+        render=0
+        for s in "$c"/device/drm/renderD*; do
+            [ -e "$s" ] && render=1
+        done
+        connected=0
+        for s in "$c"-*/status; do
+            [ -e "$s" ] && [ "$(cat "$s" 2>/dev/null)" = connected ] && connected=1
+        done
+        printf 'DRM\t%s\t%s\t%s\n' "$driver" "$render" "$connected"
+    done
+}
+
 probe() {
     local name device found src_disks busy d bytes usable why installed upgradable p disk fstype label free os m
     local linuxfw need
@@ -152,6 +174,7 @@ probe() {
     fi
     probe_system $found
     probe_serial_ports
+    probe_drm_devices
     if [ "$found" = 1 ]; then
         for p in efi $LAYOUT_SYSTEM_PARTS; do
             eval "mib=\$MIB_$p"

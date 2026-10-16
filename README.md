@@ -109,7 +109,7 @@ The scripts:
 | `systeminstaller.sh` | Commands and options, which become globals for the libraries |
 | `lib/common.sh` | Output protocol, block device, mount and size helpers |
 | `lib/source.sh` | What the running system was booted from |
-| `lib/probe.sh` | Disks, partitions, installations, system info |
+| `lib/probe.sh` | Disks, partitions, installations, system info, serial ports, graphics devices |
 | `lib/install.sh` | What both kinds of installation write: the system, the Android directory |
 | `lib/disk.sh` | Whole disk installations and upgrades |
 | `lib/beside.sh` | Installations beside another operating system, their boot entries |
@@ -123,7 +123,7 @@ The app:
 | `Wizard.kt` | The choices, the rules between them, the request |
 | `ChoiceScreens.kt` | What to do, where, confirmation |
 | `PartitionsScreen.kt` | Whole disk: layout and partition sizes |
-| `OptionsScreen.kt` | Boot options (they edit the kernel command line), serial ports, user data |
+| `OptionsScreen.kt` | Graphics and display options, boot options (they edit the kernel command line), serial ports, user data |
 | `ProgressScreens.kt` | Progress and result |
 | `Ui.kt` | Building blocks, theme, formatting |
 | `Installer.kt`, `BootReceiver.kt` | The binder service; the launcher icon on a live boot |

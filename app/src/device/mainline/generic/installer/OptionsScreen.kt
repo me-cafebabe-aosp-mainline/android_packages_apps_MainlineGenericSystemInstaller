@@ -46,13 +46,24 @@ fun OptionsScreen(w: Wizard, onNext: () -> Unit, onBack: () -> Unit) {
         }
     }
     val bootToggles = items(BOOT_TOGGLES)
+    val graphicsToggles = items(GRAPHICS_TOGGLES)
     val debugToggles = items(DEBUG_TOGGLES)
     ListPage(
         title = stringResource(R.string.options_title),
         primary = Action(stringResource(R.string.next), onClick = onNext),
         secondary = Action(stringResource(R.string.back), onClick = onBack),
     ) {
+        item { SectionTitle(stringResource(R.string.graphics_display)) }
         item { BootSelections(w, bootSelections()) }
+        switches(graphicsToggles)
+        item {
+            DrmDriver(w, R.string.drm_card, R.string.drm_card_summary, "androidboot.prefer_drm_card_name=",
+                w.probe.drmDevices.sortedByDescending { it.connected }.map { it.driver })
+        }
+        item {
+            DrmDriver(w, R.string.drm_render, R.string.drm_render_summary, "androidboot.prefer_drm_render_name=",
+                w.probe.drmDevices.filter { it.render }.map { it.driver })
+        }
         item { SectionTitle(stringResource(R.string.boot_options)) }
         switches(bootToggles)
         item { SerialPorts(w) }
@@ -142,6 +153,11 @@ private val BOOT_TOGGLES = listOf(
     BootToggle(R.string.opt_virt_wifi, R.string.opt_virt_wifi_summary, listOf("androidboot.wifi_impl=virt_wifi")),
 )
 
+private val GRAPHICS_TOGGLES = listOf(
+    BootToggle(R.string.opt_discrete_render, R.string.opt_discrete_render_summary,
+        listOf("androidboot.prefer_discrete_render=true")),
+)
+
 /** Like the Debug entry of the live media */
 private val DEBUG_TOGGLES = listOf(
     BootToggle(R.string.opt_adb, R.string.opt_adb_summary, listOf("androidboot.insecure_adb=true")),
@@ -190,6 +206,8 @@ private fun bootSelections(): List<BootSelection> = listOf(
                 listOf("androidboot.use_fb_display=true")),
             BootChoice(stringResource(R.string.graphics_swiftshader), stringResource(R.string.graphics_swiftshader_summary),
                 listOf("androidboot.graphics=swiftshader")),
+            BootChoice(stringResource(R.string.graphics_llvmpipe), stringResource(R.string.graphics_llvmpipe_summary),
+                listOf("androidboot.graphics=llvmpipe")),
         ),
     ),
     BootSelection(
@@ -228,6 +246,78 @@ private fun BootSelections(w: Wizard, selections: List<BootSelection>) {
                 ToggleRow(selection.choices, current, { it.label }, select)
             }
             Hint(current.summary)
+        }
+    }
+}
+
+//
+// DRM drivers: the display (card) and the GPU (render) can be chosen by the name of their driver
+//
+
+/** The drivers to choose from when none is found on this computer */
+private val COMMON_DRM_DRIVERS = listOf("i915", "xe", "amdgpu", "radeon", "nouveau", "virtio_gpu", "vmwgfx")
+
+private val DRM_DRIVER_NAME = Regex("[A-Za-z0-9_-]+")
+
+/**
+ * The driver for key (androidboot.prefer_drm_card_name=...): automatic (none), one of the found
+ * ones (common ones if none), or one written by hand
+ */
+@Composable
+private fun DrmDriver(w: Wizard, title: Int, summary: Int, key: String, found: List<String>) {
+    val current = w.tokenValue(key)
+    val drivers = found.distinct().ifEmpty { COMMON_DRM_DRIVERS }
+    var other by remember { mutableStateOf(false) }
+    var otherText by remember { mutableStateOf("") }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(horizontal = 4.dp)) {
+            Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(summary),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                FilterChip(
+                    selected = !other && current == null,
+                    onClick = { other = false; w.setToken(key, null) },
+                    label = { Text(stringResource(R.string.graphics_auto)) },
+                )
+            }
+            items(drivers.size) { i ->
+                FilterChip(
+                    selected = !other && current == drivers[i],
+                    onClick = { other = false; w.setToken(key, drivers[i]) },
+                    label = { Text(drivers[i]) },
+                )
+            }
+            item {
+                FilterChip(
+                    selected = other || (current != null && current !in drivers),
+                    onClick = {
+                        other = true
+                        otherText = current.orEmpty()
+                    },
+                    label = { Text(stringResource(R.string.serial_other)) },
+                )
+            }
+        }
+        if (other || (current != null && current !in drivers)) {
+            OutlinedTextField(
+                value = if (other) otherText else current.orEmpty(),
+                onValueChange = { v ->
+                    otherText = v.trim()
+                    if (otherText.matches(DRM_DRIVER_NAME)) w.setToken(key, otherText)
+                    else if (otherText.isEmpty()) w.setToken(key, null)
+                },
+                label = { Text(stringResource(R.string.drm_driver_name)) },
+                isError = otherText.isNotEmpty() && !otherText.matches(DRM_DRIVER_NAME),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }

@@ -6,6 +6,7 @@
 package device.mainline.generic.installer;
 
 import device.mainline.generic.installer.Disk;
+import device.mainline.generic.installer.DrmDevice;
 import device.mainline.generic.installer.Installation;
 import device.mainline.generic.installer.Partition;
 import device.mainline.generic.installer.PartitionLayout;
@@ -20,4 +21,6 @@ parcelable ProbeResult {
     PartitionLayout[] layout;
     /** Serial ports and virtio consoles (hvc) found */
     @utf8InCpp String[] serialPorts;
+    /** Graphics devices found */
+    DrmDevice[] drmDevices;
 }

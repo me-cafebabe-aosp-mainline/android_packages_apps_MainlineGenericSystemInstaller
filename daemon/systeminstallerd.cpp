@@ -209,6 +209,9 @@ class SystemInstaller : public installer::BnSystemInstaller {
                                                          .reason = f[5]});
                     } else if (f[0] == "SERIAL" && f.size() >= 2) {
                         result->serialPorts.push_back(f[1]);
+                    } else if (f[0] == "DRM" && f.size() >= 4) {
+                        result->drmDevices.push_back(
+                                {.driver = f[1], .render = f[2] == "1", .connected = f[3] == "1"});
                     } else if (f[0] == "LAYOUT" && f.size() >= 4) {
                         result->layout.push_back({.name = f[1],
                                                   .defaultMiB = static_cast<int32_t>(ToInt64(f[2])),

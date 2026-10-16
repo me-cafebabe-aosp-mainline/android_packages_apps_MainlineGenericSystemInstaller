@@ -70,6 +70,7 @@
     <string name="options_title">Options</string>
     <string name="cmdline">Kernel command line</string>
     <string name="cmdline_summary">The options above change it too. Parameters for how to mount the system are added when installing.</string>
+    <string name="graphics_display">Graphics and display</string>
     <string name="graphics">Graphics</string>
     <string name="graphics_auto">Automatic</string>
     <string name="graphics_auto_summary">The GPU with Mesa, when the graphics card is supported</string>
@@ -77,6 +78,8 @@
     <string name="graphics_fb_summary">Display through framebuffer devices: works with most graphics cards, with fewer features</string>
     <string name="graphics_swiftshader">SwiftShader</string>
     <string name="graphics_swiftshader_summary">Rendering on the CPU with SwiftShader: slow, but needs no graphics driver</string>
+    <string name="graphics_llvmpipe">Mesa llvmpipe</string>
+    <string name="graphics_llvmpipe_summary">Rendering on the CPU with Mesa llvmpipe and lavapipe: slow, but needs no graphics driver</string>
     <string name="lcd_density">Screen density</string>
     <string name="lcd_density_auto">Automatic</string>
     <string name="lcd_density_summary">Size of the user interface, in dots per inch. Automatic computes it from the display.</string>
@@ -102,6 +105,13 @@
     <string name="opt_bootsplash_summary">A splash screen with the progress of starting</string>
     <string name="opt_virt_wifi">Ethernet as Wi-Fi</string>
     <string name="opt_virt_wifi_summary">Shows an Ethernet connection to apps as a Wi-Fi network (virt_wifi)</string>
+    <string name="opt_discrete_render">Render on the graphics card</string>
+    <string name="opt_discrete_render_summary">With an integrated GPU on the display and a graphics card in a slot, render on the card and display through the integrated GPU</string>
+    <string name="drm_card">Display driver</string>
+    <string name="drm_card_summary">The DRM driver of the graphics card that displays (androidboot.prefer_drm_card_name)</string>
+    <string name="drm_render">Rendering driver</string>
+    <string name="drm_render_summary">The DRM driver of the GPU that renders (androidboot.prefer_drm_render_name), when it is not the display</string>
+    <string name="drm_driver_name">DRM driver name</string>
     <string name="opt_fbcon">Framebuffer console</string>
     <string name="opt_fbcon_summary">Kernel messages on the screen</string>
     <string name="opt_quiet">Quiet</string>

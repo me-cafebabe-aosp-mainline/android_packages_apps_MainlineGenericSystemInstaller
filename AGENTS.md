@@ -114,7 +114,7 @@ everything) and the disk image must stay identical.
 | `scripts/systeminstaller.sh` | Entry point: `probe`, `install-disk`, `install-beside`, `upgrade`, the options |
 | `scripts/lib/common.sh` | Protocol, block device, mount and size helpers |
 | `scripts/lib/source.sh` | Finds what the running system was booted from |
-| `scripts/lib/probe.sh` | Disks, partitions, installations, system info |
+| `scripts/lib/probe.sh` | Disks, partitions, installations, system info, serial ports, graphics devices |
 | `scripts/lib/install.sh` | What both kinds of installation write: the system, the Android directory |
 | `scripts/lib/disk.sh` | Whole disk installations and upgrades |
 | `scripts/lib/beside.sh` | Installations beside another operating system, their boot entries |
